@@ -108,8 +108,17 @@ export default function App() {
 
   const [memoryDraft, setMemoryDraft] = useState({
     date: todayStr, text: '', mood: null,
-    weather: 'sun', steps: '', music: '', period: 'none', images: []
+    weather: 'sun', music: '', period: 'none', images: []
   });
+
+  // 處理照片上傳預覽
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      setMemoryDraft(prev => ({ ...prev, images: [imageUrl] }));
+    }
+  };
 
   const [financeDraft, setFinanceDraft] = useState({
     date: todayStr, amount: '', category: '飲食', note: ''
@@ -133,7 +142,7 @@ export default function App() {
     if (!memoryDraft.mood && !memoryDraft.text) return;
     const newEntry = { id: Date.now(), ...memoryDraft };
     setMemories([newEntry, ...memories]);
-    setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', steps: '', music: '', period: 'none', images: [] });
+    setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
     setCurrentView('home');
   };
 
@@ -212,7 +221,15 @@ export default function App() {
   }
 
   const renderHome = () => {
-    const hasActivePeriod = memories.some(m => m.date === todayStr && m.period !== 'none');
+    const dateObj = new Date(todayStr);
+    const currentYear = dateObj.getFullYear();
+    const currentMonth = dateObj.getMonth() + 1;
+    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
+    const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
+
+    const currentMonthMemories = memories.filter(m => m.date.startsWith(currentMonthPrefix));
+    const hasActivePeriod = currentMonthMemories.some(m => m.date === todayStr && m.period !== 'none');
 
     return (
       <div className="flex-1 overflow-y-auto pb-24 relative scroll-smooth">
@@ -222,6 +239,7 @@ export default function App() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-800 tracking-wide">生活手帳日誌</h1>
+              <p className="text-xs font-bold text-slate-500 mt-1">{currentYear} 年 {currentMonth} 月</p>
               {hasActivePeriod && (
                 <div className="inline-flex items-center gap-1 mt-2 px-3 py-1 bg-red-50/80 backdrop-blur-sm text-red-700/80 rounded-full text-xs font-bold border border-red-100">
                   <Droplets size={12} /> 生理期記錄中
@@ -237,7 +255,7 @@ export default function App() {
           <div className="relative w-28 h-36 mx-auto mb-8">
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-20 h-5 bg-amber-800/40 rounded-full border-b-2 border-amber-900/20 z-20 backdrop-blur-sm"></div>
             <div className="absolute inset-0 bg-white/20 backdrop-blur-md border-2 border-white/50 rounded-b-[2rem] rounded-t-xl shadow-[inset_0_0_15px_rgba(255,255,255,0.6)] z-10 flex flex-wrap-reverse content-start justify-center gap-1 p-3 pt-5 overflow-hidden">
-              {memories.map((m, i) => (
+              {currentMonthMemories.map((m, i) => (
                 <SvgOrb key={i} moodId={m.mood} size="xs" />
               ))}
               <div className="absolute top-0 left-2 w-3 h-full bg-white/30 rounded-full skew-x-6 blur-[1px] pointer-events-none"></div>
@@ -250,12 +268,12 @@ export default function App() {
               {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-2">
-              {[...Array(1).keys()].map(i => <div key={`empty-${i}`} className="aspect-square"></div>)}
-              {[...Array(30).keys()].map(i => {
+              {[...Array(firstDayOfWeek).keys()].map(i => <div key={`empty-${i}`} className="aspect-square"></div>)}
+              {[...Array(daysInMonth).keys()].map(i => {
                 const day = i + 1;
-                const dateStr = `2026-06-${day.toString().padStart(2, '0')}`;
+                const dateStr = `${currentMonthPrefix}-${day.toString().padStart(2, '0')}`;
                 const dayMemory = memories.find(m => m.date === dateStr);
-                const isToday = day === 22;
+                const isToday = dateStr === todayStr;
                 const hasImage = dayMemory && dayMemory.images && dayMemory.images.length > 0;
 
                 return (
@@ -361,14 +379,29 @@ export default function App() {
                     {entry.images.length > 0 && (
                       <img src={entry.images[0]} className="w-full h-40 object-cover rounded-xl" alt="手帳照片" />
                     )}
+                    
+                    {/* 音樂播放器處理 (支援 KKBOX) */}
                     {entry.music && (
-                      <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl flex items-center gap-2">
-                        <Music size={14} className="animate-spin" /> {entry.music}
-                      </div>
+                      entry.music.includes('kkbox.com') ? (
+                        <iframe 
+                          style={{borderRadius: '12px'}} 
+                          src={entry.music.replace('https://www.kkbox.com/', 'https://widget.kkbox.com/v1/')}
+                          width="100%" 
+                          height="100" 
+                          frameBorder="0" 
+                          allowFullScreen="" 
+                          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                          loading="lazy"
+                        ></iframe>
+                      ) : (
+                        <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl flex items-center gap-2">
+                          <Music size={14} className="animate-spin" /> {entry.music}
+                        </div>
+                      )
                     )}
+
                     <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
                     <div className="flex gap-4 text-xs text-slate-400">
-                      {entry.steps && <span>👣 {entry.steps} 步</span>}
                       {entry.weather && <span>🌤️ 天氣狀態</span>}
                     </div>
                   </div>
@@ -510,25 +543,61 @@ export default function App() {
     </div>
   );
 
-  // --- 大腦儲藏室 ---
-  const renderStorage = () => (
-    <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12">
-       <h1 className="text-xl font-bold mb-1 flex items-center gap-2"><Archive className="text-amber-400" /> 大腦儲藏空間</h1>
-       <p className="text-xs text-slate-400 mb-8">月底自動封存的星雲集合</p>
+  // --- 大腦儲藏室 (動態記憶星球) ---
+  const renderStorage = () => {
+    // 篩選當月的所有記憶 (在真實系統中可透過年份/月份過濾)
+    const currentMonthMemories = memories;
 
-       <div className="space-y-6">
-         <div className="bg-slate-800/60 rounded-3xl p-6 border border-slate-700/50 flex flex-col items-center">
-            <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-slate-600 via-slate-500 to-amber-700/40 shadow-inner mb-4 relative">
-               <div className="absolute inset-2 border border-dashed border-white/10 rounded-full animate-spin"></div>
-            </div>
-            <div className="flex items-center gap-2">
-               <input type="text" value={planetName} onChange={(e) => setPlanetName(e.target.value)} className="bg-transparent text-sm font-bold text-white text-center outline-none border-b border-slate-700 focus:border-amber-400 w-36" />
-               <Edit2 size={12} className="text-slate-500" />
-            </div>
+    return (
+      <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12">
+         <h1 className="text-xl font-bold mb-1 flex items-center gap-2"><Archive className="text-amber-400" /> 大腦儲藏空間</h1>
+         <p className="text-xs text-slate-400 mb-8">月底自動封存的星雲集合</p>
+
+         <div className="space-y-6">
+           <div className="bg-slate-800/60 rounded-3xl p-6 border border-slate-700/50 flex flex-col items-center">
+              
+              {/* --- 動態生成的 3D 星球 --- */}
+              <div className="w-40 h-40 rounded-full bg-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] mb-6 relative overflow-hidden flex items-center justify-center">
+                 {/* 旋轉的星雲斑塊層 */}
+                 <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
+                   {currentMonthMemories.length === 0 ? (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600 font-bold z-20">尚未形成星雲</div>
+                   ) : (
+                      currentMonthMemories.map((m, idx) => {
+                         // 利用 index 產生穩定的偽隨機座標與大小，讓星雲自然分佈
+                         const x = (idx * 137) % 120 - 10; 
+                         const y = (idx * 251) % 120 - 10;
+                         const size = 50 + ((idx * 73) % 60); 
+                         
+                         return (
+                           <div
+                              key={m.id}
+                              className="absolute rounded-full blur-[10px] opacity-80"
+                              style={{
+                                 backgroundColor: MOODS[m.mood].dark,
+                                 width: `${size}%`,
+                                 height: `${size}%`,
+                                 top: `${y}%`,
+                                 left: `${x}%`,
+                              }}
+                           />
+                         )
+                      })
+                   )}
+                 </div>
+                 {/* 3D 球體光影遮罩 (不跟著旋轉，製造立體感) */}
+                 <div className="absolute inset-0 rounded-full shadow-[inset_-15px_-15px_30px_rgba(0,0,0,0.8),inset_5px_5px_15px_rgba(255,255,255,0.4)] pointer-events-none z-10"></div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                 <input type="text" value={planetName} onChange={(e) => setPlanetName(e.target.value)} className="bg-transparent text-sm font-bold text-white text-center outline-none border-b border-slate-700 focus:border-amber-400 w-36" />
+                 <Edit2 size={12} className="text-slate-500" />
+              </div>
+           </div>
          </div>
-       </div>
-    </div>
-  );
+      </div>
+    );
+  };
 
   // --- 新增功能表單頁面 ---
   const renderAddMemory = () => (
@@ -555,11 +624,28 @@ export default function App() {
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs text-slate-500">
+          {/* 照片上傳區塊 */}
           <div>
-            <label className="block font-bold mb-1.5">專屬背景音樂 (BGM)</label>
-            <input type="text" placeholder="輸入今天適合的歌曲..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
+             <div className="flex items-center justify-between mb-2">
+               <label className="font-bold">照片紀錄</label>
+               <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors">
+                 <Camera size={14} /> 從相簿選擇
+               </label>
+               <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
+             </div>
+             {memoryDraft.images.length > 0 && (
+               <div className="relative inline-block mt-2">
+                 <img src={memoryDraft.images[0]} alt="預覽" className="h-24 w-24 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                 <button onClick={() => setMemoryDraft({...memoryDraft, images: []})} className="absolute -top-2 -right-2 bg-slate-800 text-white p-1 rounded-full shadow-md"><X size={12} /></button>
+               </div>
+             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div>
+            <label className="block font-bold mb-1.5">專屬背景音樂 (可貼 KKBOX 連結)</label>
+            <input type="text" placeholder="輸入歌名，或貼上 KKBOX 連結..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block font-bold mb-1.5">生理期流量</label>
               <select value={memoryDraft.period} onChange={e => setMemoryDraft({...memoryDraft, period: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700">
@@ -568,10 +654,6 @@ export default function App() {
                 <option value="normal">正常</option>
                 <option value="heavy">量多</option>
               </select>
-            </div>
-            <div>
-              <label className="block font-bold mb-1.5">健康步數連動</label>
-              <input type="number" placeholder="8500" value={memoryDraft.steps} onChange={e => setMemoryDraft({...memoryDraft, steps: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
             </div>
           </div>
         </div>
