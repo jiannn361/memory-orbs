@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Home, Plus, PieChart, User, Camera, 
   Sparkles, Coffee, DollarSign, Shirt, 
@@ -93,16 +93,24 @@ const SkyBackground = () => (
 export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentView, setCurrentView] = useState('home'); 
-  const [activeTab, setActiveTab] = useState('diary');
   
-  const [memories, setMemories] = useState(INITIAL_MEMORIES);
-  const [todos, setTodos] = useState(INITIAL_TODOS);
+  // 導入 localStorage：現在起關閉 App 資料也不會不見了！
+  const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || INITIAL_MEMORIES);
+  const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || INITIAL_TODOS);
+  const [finances, setFinances] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_finances')) || []);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [selectedDateModal, setSelectedDateModal] = useState(null); 
   
-  const [planetName, setPlanetName] = useState('未命名的小宇宙');
+  const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '未命名的小宇宙');
   const [addingTodo, setAddingTodo] = useState(false);
   const [newTodoDraft, setNewTodoDraft] = useState({ text: '', date: new Date().toISOString().split('T')[0] });
+  const [editingMemoryId, setEditingMemoryId] = useState(null);
+
+  // 監聽資料變化，並自動在背景存檔到手機中
+  useEffect(() => { localStorage.setItem('memoryorbs_memories', JSON.stringify(memories)); }, [memories]);
+  useEffect(() => { localStorage.setItem('memoryorbs_todos', JSON.stringify(todos)); }, [todos]);
+  useEffect(() => { localStorage.setItem('memoryorbs_finances', JSON.stringify(finances)); }, [finances]);
+  useEffect(() => { localStorage.setItem('memoryorbs_planetName', planetName); }, [planetName]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -124,7 +132,6 @@ export default function App() {
     date: todayStr, amount: '', category: '飲食', note: ''
   });
 
-  const [finances, setFinances] = useState([]);
   const [statsTab, setStatsTab] = useState('mood');
 
   const toggleTodo = (id) => {
@@ -140,8 +147,22 @@ export default function App() {
 
   const handleSaveMemory = () => {
     if (!memoryDraft.mood && !memoryDraft.text) return;
-    const newEntry = { id: Date.now(), ...memoryDraft };
-    setMemories([newEntry, ...memories]);
+    
+    // 判斷是編輯還是新增
+    if (editingMemoryId) {
+      setMemories(memories.map(m => m.id === editingMemoryId ? { ...memoryDraft, id: editingMemoryId } : m));
+    } else {
+      const existingEntry = memories.find(m => m.date === memoryDraft.date);
+      if (existingEntry) {
+        // 如果同日已經有日記，直接覆蓋
+        setMemories(memories.map(m => m.date === memoryDraft.date ? { ...memoryDraft, id: existingEntry.id } : m));
+      } else {
+        const newEntry = { id: Date.now(), ...memoryDraft };
+        setMemories([newEntry, ...memories]);
+      }
+    }
+    
+    setEditingMemoryId(null);
     setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
     setCurrentView('home');
   };
@@ -163,7 +184,6 @@ export default function App() {
     e.target.setPointerCapture(e.pointerId);
     const item = scrapbookItems.find(i => i.id === id);
     maxZIndex.current += 1;
-    
     setDragInfo({ id, startX: e.clientX, startY: e.clientY, initX: item.x, initY: item.y });
     setScrapbookItems(items => items.map(i => i.id === id ? { ...i, zIndex: maxZIndex.current } : i));
   };
@@ -373,7 +393,18 @@ export default function App() {
                 return (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                      <h2 className="text-lg font-bold text-slate-700">{entry.date}</h2>
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-bold text-slate-700">{entry.date}</h2>
+                        {/* 編輯按鈕 */}
+                        <button onClick={() => {
+                          setMemoryDraft({...entry});
+                          setEditingMemoryId(entry.id);
+                          setSelectedDateModal(null);
+                          setCurrentView('add_memory');
+                        }} className="text-slate-400 hover:text-amber-600 transition-colors bg-slate-100 p-1.5 rounded-full">
+                          <Edit2 size={14} />
+                        </button>
+                      </div>
                       <SvgOrb moodId={entry.mood} size="sm" />
                     </div>
                     {entry.images.length > 0 && (
@@ -402,7 +433,10 @@ export default function App() {
 
                     <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
                     <div className="flex gap-4 text-xs text-slate-400">
-                      {entry.weather && <span>🌤️ 天氣狀態</span>}
+                      {entry.weather === 'sun' && <span>☀️ 晴朗天氣</span>}
+                      {entry.weather === 'cloud' && <span>☁️ 多雲天氣</span>}
+                      {entry.weather === 'rain' && <span>🌧️ 雨天</span>}
+                      {entry.weather === 'snow' && <span>❄️ 下雪</span>}
                     </div>
                   </div>
                 );
@@ -545,7 +579,6 @@ export default function App() {
 
   // --- 大腦儲藏室 (動態記憶星球) ---
   const renderStorage = () => {
-    // 篩選當月的所有記憶 (在真實系統中可透過年份/月份過濾)
     const currentMonthMemories = memories;
 
     return (
@@ -556,15 +589,12 @@ export default function App() {
          <div className="space-y-6">
            <div className="bg-slate-800/60 rounded-3xl p-6 border border-slate-700/50 flex flex-col items-center">
               
-              {/* --- 動態生成的 3D 星球 --- */}
               <div className="w-40 h-40 rounded-full bg-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] mb-6 relative overflow-hidden flex items-center justify-center">
-                 {/* 旋轉的星雲斑塊層 */}
                  <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
                    {currentMonthMemories.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600 font-bold z-20">尚未形成星雲</div>
                    ) : (
                       currentMonthMemories.map((m, idx) => {
-                         // 利用 index 產生穩定的偽隨機座標與大小，讓星雲自然分佈
                          const x = (idx * 137) % 120 - 10; 
                          const y = (idx * 251) % 120 - 10;
                          const size = 50 + ((idx * 73) % 60); 
@@ -585,7 +615,6 @@ export default function App() {
                       })
                    )}
                  </div>
-                 {/* 3D 球體光影遮罩 (不跟著旋轉，製造立體感) */}
                  <div className="absolute inset-0 rounded-full shadow-[inset_-15px_-15px_30px_rgba(0,0,0,0.8),inset_5px_5px_15px_rgba(255,255,255,0.4)] pointer-events-none z-10"></div>
               </div>
 
@@ -599,12 +628,16 @@ export default function App() {
     );
   };
 
-  // --- 新增功能表單頁面 ---
+  // --- 新增/編輯 功能表單頁面 ---
   const renderAddMemory = () => (
     <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
       <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
-        <button onClick={() => setCurrentView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
-        <h2 className="text-sm font-bold text-slate-700">生活日誌封存</h2>
+        <button onClick={() => {
+          setCurrentView('home');
+          setEditingMemoryId(null);
+          setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
+        }} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
+        <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活日誌' : '生活日誌封存'}</h2>
         <button onClick={handleSaveMemory} className="p-2 bg-slate-800 rounded-full text-white"><Check size={18} /></button>
       </div>
 
@@ -624,7 +657,6 @@ export default function App() {
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs text-slate-500">
-          {/* 照片上傳區塊 */}
           <div>
              <div className="flex items-center justify-between mb-2">
                <label className="font-bold">照片紀錄</label>
@@ -645,7 +677,8 @@ export default function App() {
             <label className="block font-bold mb-1.5">專屬背景音樂 (可貼 KKBOX 連結)</label>
             <input type="text" placeholder="輸入歌名，或貼上 KKBOX 連結..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
           </div>
-          <div className="grid grid-cols-1 gap-3">
+          
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold mb-1.5">生理期流量</label>
               <select value={memoryDraft.period} onChange={e => setMemoryDraft({...memoryDraft, period: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700">
@@ -654,6 +687,19 @@ export default function App() {
                 <option value="normal">正常</option>
                 <option value="heavy">量多</option>
               </select>
+            </div>
+            <div>
+              <label className="block font-bold mb-1.5">天氣狀況</label>
+              <div className="flex justify-between bg-slate-50 p-1 rounded-xl">
+                {['sun', 'cloud', 'rain', 'snow'].map(w => (
+                  <button key={w} onClick={() => setMemoryDraft({...memoryDraft, weather: w})} className={`p-1.5 rounded-lg transition-colors ${memoryDraft.weather === w ? 'bg-white shadow-sm text-amber-500' : 'text-slate-400'}`}>
+                    {w === 'sun' && <Sun size={16} />}
+                    {w === 'cloud' && <Cloud size={16} />}
+                    {w === 'rain' && <CloudRain size={16} />}
+                    {w === 'snow' && <Snowflake size={16} />}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -696,6 +742,33 @@ export default function App() {
     </div>
   );
 
+  // --- 我的帳號設定頁面 (人頭圖示) ---
+  const renderProfile = () => (
+    <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
+      <h1 className="text-xl font-bold mb-6 text-slate-800 tracking-wide">我的設定</h1>
+      <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 mb-6 flex items-center gap-4">
+         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><User size={32}/></div>
+         <div>
+           <h2 className="text-lg font-bold text-slate-700">小晴</h2>
+           <p className="text-xs text-slate-400">累積封存了 {memories.length} 顆記憶球</p>
+         </div>
+      </div>
+      <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
+          <div className="flex items-center gap-3"><ScanFace size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">Face ID 隱私鎖定</span></div>
+          <div className="w-10 h-6 bg-amber-500 rounded-full flex items-center p-1 justify-end"><div className="w-4 h-4 bg-white rounded-full"></div></div>
+        </div>
+        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
+          <div className="flex items-center gap-3"><Archive size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">本機資料匯出備份</span></div>
+          <span className="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-500 font-bold">下載備份</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3"><Trash2 size={18} className="text-red-400"/><span className="text-sm font-bold text-red-500">清除本機快取資料</span></div>
+        </div>
+      </div>
+    </div>
+  );
+
   const hideNav = ['add_memory', 'add_finance', 'dump'].includes(currentView);
 
   return (
@@ -705,6 +778,7 @@ export default function App() {
         {currentView === 'home' && renderHome()}
         {currentView === 'stats' && renderStats()}
         {currentView === 'storage' && renderStorage()}
+        {currentView === 'profile' && renderProfile()}
         {currentView === 'add_memory' && renderAddMemory()}
         {currentView === 'add_finance' && renderAddFinance()}
         {currentView === 'dump' && renderScrapbook()}
@@ -712,7 +786,12 @@ export default function App() {
         {showAddMenu && !hideNav && (
           <div className="absolute inset-0 z-40 bg-slate-900/20 backdrop-blur-xs flex flex-col justify-end pb-32 items-center">
             <div className="flex gap-6 mb-4 z-50">
-              <button onClick={() => { setShowAddMenu(false); setCurrentView('add_memory'); }} className="flex flex-col items-center gap-1.5">
+              <button onClick={() => { 
+                setShowAddMenu(false); 
+                setEditingMemoryId(null);
+                setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
+                setCurrentView('add_memory'); 
+              }} className="flex flex-col items-center gap-1.5">
                 <div className="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md"><Smile size={20} /></div>
                 <span className="text-[10px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full shadow-xs">封存記憶</span>
               </button>
@@ -743,7 +822,7 @@ export default function App() {
             <button onClick={() => setCurrentView('storage')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'storage' ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
               <Archive size={22} /><span className="text-[9px]">星球</span>
             </button>
-            <button className="p-1.5 flex flex-col items-center gap-0.5 text-slate-400">
+            <button onClick={() => setCurrentView('profile')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'profile' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
               <User size={22} /><span className="text-[9px]">我的</span>
             </button>
           </div>
