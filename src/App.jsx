@@ -6,7 +6,7 @@ import {
   Calendar as CalendarIcon, Archive, X, ChevronRight,
   Sun, Cloud, CloudRain, Snowflake, Music, 
   Footprints, Droplets, CheckCircle2, Circle,
-  ScanFace, Share2, Edit2, PlaySquare, Type, StickyNote, Trash2
+  ScanFace, Share2, Edit2, PlaySquare, Type, StickyNote, Trash2, Play
 } from 'lucide-react';
 
 // --- 設定常數：莫蘭迪色系 (Morandi Colors) ---
@@ -94,7 +94,7 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentView, setCurrentView] = useState('home'); 
   
-  // 導入 localStorage：現在起關閉 App 資料也不會不見了！
+  // 導入 localStorage
   const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || INITIAL_MEMORIES);
   const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || INITIAL_TODOS);
   const [finances, setFinances] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_finances')) || []);
@@ -106,7 +106,6 @@ export default function App() {
   const [newTodoDraft, setNewTodoDraft] = useState({ text: '', date: new Date().toISOString().split('T')[0] });
   const [editingMemoryId, setEditingMemoryId] = useState(null);
 
-  // 監聽資料變化，並自動在背景存檔到手機中
   useEffect(() => { localStorage.setItem('memoryorbs_memories', JSON.stringify(memories)); }, [memories]);
   useEffect(() => { localStorage.setItem('memoryorbs_todos', JSON.stringify(todos)); }, [todos]);
   useEffect(() => { localStorage.setItem('memoryorbs_finances', JSON.stringify(finances)); }, [finances]);
@@ -119,12 +118,31 @@ export default function App() {
     weather: 'sun', music: '', period: 'none', images: []
   });
 
-  // 處理照片上傳預覽
+  // 完美解決照片不見的問題：使用 Canvas 壓縮並轉換成 Base64 永久儲存
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setMemoryDraft(prev => ({ ...prev, images: [imageUrl] }));
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          // 設定最大寬度以節省儲存空間 (防止 localStorage 爆掉)
+          const MAX_WIDTH = 600; 
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          // 轉換成 Base64 字串 (0.7 代表壓縮品質)
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          setMemoryDraft(prev => ({ ...prev, images: [compressedBase64] }));
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -148,13 +166,11 @@ export default function App() {
   const handleSaveMemory = () => {
     if (!memoryDraft.mood && !memoryDraft.text) return;
     
-    // 判斷是編輯還是新增
     if (editingMemoryId) {
       setMemories(memories.map(m => m.id === editingMemoryId ? { ...memoryDraft, id: editingMemoryId } : m));
     } else {
       const existingEntry = memories.find(m => m.date === memoryDraft.date);
       if (existingEntry) {
-        // 如果同日已經有日記，直接覆蓋
         setMemories(memories.map(m => m.date === memoryDraft.date ? { ...memoryDraft, id: existingEntry.id } : m));
       } else {
         const newEntry = { id: Date.now(), ...memoryDraft };
@@ -381,62 +397,86 @@ export default function App() {
 
         {/* 檢視特定日期細節卡片 */}
         {selectedDateModal && (
-          <div className="absolute inset-0 z-50 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-6">
-            <div className="bg-white w-full max-w-sm rounded-[2rem] overflow-hidden shadow-xl relative p-6 border border-slate-100">
-              <button onClick={() => setSelectedDateModal(null)} className="absolute top-4 right-4 p-1.5 bg-slate-100 rounded-full text-slate-500">
+          <div className="absolute inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-6">
+            {/* 解決排版打到叉叉的問題：加入 pt-10 預留空間給關閉按鈕 */}
+            <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative p-6 pt-10 border border-slate-100">
+              {/* 關閉按鈕 */}
+              <button onClick={() => setSelectedDateModal(null)} className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-slate-500 z-20">
                 <X size={18} />
               </button>
 
               {(() => {
                 const entry = memories.find(m => m.date === selectedDateModal);
                 if (!entry) return null;
+                
+                // 判斷是否為音樂網址，如果不是，就自動建立 YouTube 搜尋網址
+                const isUrl = entry.music?.startsWith('http');
+                const musicLink = isUrl ? entry.music : `https://www.youtube.com/results?search_query=${encodeURIComponent(entry.music)}`;
+
                 return (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                  <div className="space-y-5 max-h-[75vh] overflow-y-auto no-scrollbar pb-4">
+                    <div className="flex justify-between items-end border-b border-slate-50 pb-3 mt-2">
                       <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold text-slate-700">{entry.date}</h2>
-                        {/* 編輯按鈕 */}
+                        <h2 className="text-2xl font-black text-slate-700 tracking-wide">{entry.date.replace(/-/g, '.')}</h2>
                         <button onClick={() => {
                           setMemoryDraft({...entry});
                           setEditingMemoryId(entry.id);
                           setSelectedDateModal(null);
                           setCurrentView('add_memory');
-                        }} className="text-slate-400 hover:text-amber-600 transition-colors bg-slate-100 p-1.5 rounded-full">
+                        }} className="text-slate-400 hover:text-amber-600 transition-colors bg-slate-100 p-1.5 rounded-full shadow-sm">
                           <Edit2 size={14} />
                         </button>
                       </div>
-                      <SvgOrb moodId={entry.mood} size="sm" />
+                      <SvgOrb moodId={entry.mood} size="sm" customClass="shadow-sm" />
                     </div>
+                    
                     {entry.images.length > 0 && (
-                      <img src={entry.images[0]} className="w-full h-40 object-cover rounded-xl" alt="手帳照片" />
+                      <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-100 relative group">
+                         <img src={entry.images[0]} className="w-full h-48 object-cover hover:scale-105 transition-transform duration-700" alt="手帳照片" />
+                      </div>
                     )}
                     
-                    {/* 音樂播放器處理 (支援 KKBOX) */}
+                    {/* --- 全新黑膠唱片機 BGM UI --- */}
                     {entry.music && (
-                      entry.music.includes('kkbox.com') ? (
-                        <iframe 
-                          style={{borderRadius: '12px'}} 
-                          src={entry.music.replace('https://www.kkbox.com/', 'https://widget.kkbox.com/v1/')}
-                          width="100%" 
-                          height="100" 
-                          frameBorder="0" 
-                          allowFullScreen="" 
-                          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
-                          loading="lazy"
-                        ></iframe>
-                      ) : (
-                        <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl flex items-center gap-2">
-                          <Music size={14} className="animate-spin" /> {entry.music}
+                      <a href={musicLink} target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 p-3 rounded-2xl hover:shadow-md transition-all group relative overflow-hidden">
+                        <div className="flex items-center gap-4 relative z-10">
+                           {/* 會自轉的黑膠唱片 */}
+                           <div className="relative w-14 h-14 rounded-full bg-slate-900 shadow-lg border-4 border-slate-800 group-hover:animate-[spin_3s_linear_infinite] flex items-center justify-center flex-shrink-0">
+                              {/* 唱片紋路 */}
+                              <div className="absolute inset-1 rounded-full border border-slate-700/50"></div>
+                              <div className="absolute inset-2.5 rounded-full border border-slate-700/50"></div>
+                              {/* 中間彩色標籤 */}
+                              <div className="w-5 h-5 rounded-full bg-amber-400 border border-slate-800 flex items-center justify-center">
+                                 {/* 唱片孔 */}
+                                 <div className="w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+                              </div>
+                           </div>
+                           <div className="flex-1 overflow-hidden pr-2">
+                             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold mb-1 uppercase tracking-wider">
+                                <Music size={12} className="text-amber-500" /> BGM
+                             </div>
+                             <p className="text-sm text-slate-700 font-bold truncate group-hover:text-amber-600 transition-colors">
+                               {isUrl ? "🎵 點擊播放專屬音樂" : entry.music}
+                             </p>
+                           </div>
+                           <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-amber-500 group-hover:scale-110 transition-all flex-shrink-0">
+                             <Play size={14} className="ml-0.5" />
+                           </div>
                         </div>
-                      )
+                        {/* 裝飾背景 */}
+                        <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-amber-100 rounded-full opacity-20 blur-xl"></div>
+                      </a>
                     )}
 
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
-                    <div className="flex gap-4 text-xs text-slate-400">
-                      {entry.weather === 'sun' && <span>☀️ 晴朗天氣</span>}
-                      {entry.weather === 'cloud' && <span>☁️ 多雲天氣</span>}
-                      {entry.weather === 'rain' && <span>🌧️ 雨天</span>}
-                      {entry.weather === 'snow' && <span>❄️ 下雪</span>}
+                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-sm text-slate-600 leading-loose whitespace-pre-wrap font-medium">{entry.text}</p>
+                    </div>
+                    
+                    <div className="flex gap-4 text-xs font-bold text-slate-400 pt-2 px-1">
+                      {entry.weather === 'sun' && <span className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-md"><Sun size={14}/> 晴朗</span>}
+                      {entry.weather === 'cloud' && <span className="flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-1 rounded-md"><Cloud size={14}/> 多雲</span>}
+                      {entry.weather === 'rain' && <span className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-1 rounded-md"><CloudRain size={14}/> 雨天</span>}
+                      {entry.weather === 'snow' && <span className="flex items-center gap-1 bg-sky-50 text-sky-600 px-2 py-1 rounded-md"><Snowflake size={14}/> 下雪</span>}
                     </div>
                   </div>
                 );
@@ -525,7 +565,7 @@ export default function App() {
     </div>
   );
 
-  // --- 統計數據頁面 (情緒與記帳分離夾層) ---
+  // --- 統計數據頁面 ---
   const renderStats = () => (
     <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
       <div className="flex justify-center bg-slate-200/60 p-1 rounded-xl mb-6">
@@ -674,8 +714,8 @@ export default function App() {
           </div>
 
           <div>
-            <label className="block font-bold mb-1.5">專屬背景音樂 (可貼 KKBOX 連結)</label>
-            <input type="text" placeholder="輸入歌名，或貼上 KKBOX 連結..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
+            <label className="block font-bold mb-1.5">專屬背景音樂 (網址或歌名皆可)</label>
+            <input type="text" placeholder="例：Perfect Night，或直接貼音樂網址..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
