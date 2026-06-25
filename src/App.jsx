@@ -338,7 +338,7 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* 檢視特定日期細節與記帳面板 */}
         {selectedDateModal && (
           <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6 animate-fade-in">
             <div className="bg-[#FBF9F4] w-full max-h-[85vh] sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl relative flex flex-col">
@@ -665,7 +665,7 @@ export default function App() {
           setEditingMemoryId(null);
           setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
         }} className="p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition"><X size={18} /></button>
-        <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活手帳' : '封存生活記憶'}</h2>
+        <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活手帳' : '生活日誌封存'}</h2>
         <button onClick={handleSaveMemory} className="p-2 bg-slate-800 hover:bg-slate-700 transition rounded-full text-white"><Check size={18} /></button>
       </div>
 
@@ -676,7 +676,7 @@ export default function App() {
         </div>
 
         <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 flex flex-col items-center">
-          <p className="text-xs font-bold text-slate-400 mb-4">選擇這顆記憶的顏色</p>
+          <p className="text-xs font-bold text-slate-400 mb-4">今天的心情莫蘭迪玻璃球</p>
           <div className="flex justify-center gap-3">
             {Object.keys(MOODS).map(k => (
               <SvgOrb key={k} moodId={k} size="md" isSelected={memoryDraft.mood === k} onClick={() => setMemoryDraft({...memoryDraft, mood: k})} />
