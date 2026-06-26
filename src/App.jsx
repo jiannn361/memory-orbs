@@ -17,8 +17,56 @@ const MOODS = {
   disgust: { id: 'disgust', name: '厭惡', light: '#D3DDD4', dark: '#839987', face: 'disgust' }, 
 };
 
-const INITIAL_MEMORIES = [];
-const INITIAL_TODOS = [];
+// --- 萬無一失的資料讀取保護機制 ---
+const safeParse = (key, defaultVal) => {
+  try {
+    const item = localStorage.getItem(key);
+    if (!item || item === 'undefined' || item === 'null') return defaultVal;
+    const parsed = JSON.parse(item);
+    if (Array.isArray(defaultVal) && !Array.isArray(parsed)) return defaultVal;
+    if (typeof defaultVal === 'object' && defaultVal !== null && !Array.isArray(defaultVal) && (typeof parsed !== 'object' || parsed === null)) return defaultVal;
+    return parsed;
+  } catch (e) {
+    console.error(`解析 ${key} 發生錯誤，返回預設值`, e);
+    return defaultVal;
+  }
+};
+
+// --- 全域錯誤防護罩 (Error Boundary) 防止白畫面 ---
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("App Crashed:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+          <h1 className="text-2xl font-bold mb-4 text-white">Oops! 記憶球發生了一點時空錯亂 🌀</h1>
+          <p className="text-sm text-slate-400 mb-8 whitespace-pre-wrap leading-relaxed">
+            這通常是因為舊版本的資料格式衝突造成的。<br/>您可以點擊下方按鈕進行「安全修復」<br/>(這將清除舊有損壞的快取資料並重置系統)
+          </p>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            className="px-8 py-3 bg-amber-500 hover:bg-amber-600 rounded-full font-bold text-white shadow-lg transition-all"
+          >
+            🔄 清除資料並安全重置
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const SvgOrb = ({ moodId, size = 'md', isSelected = false, onClick, customClass = '' }) => {
   const mood = MOODS[moodId] || MOODS.joy;
@@ -48,13 +96,10 @@ const SvgOrb = ({ moodId, size = 'md', isSelected = false, onClick, customClass 
              <stop offset="100%" stopColor="white" stopOpacity="0" />
           </linearGradient>
         </defs>
-
         <circle cx="50" cy="50" r="46" fill={`url(#glass-${moodId}-${uniqueId})`} />
         <circle cx="50" cy="50" r="46" fill="none" stroke="white" strokeWidth="1.5" strokeOpacity="0.3" />
-        
         <ellipse cx="50" cy="22" rx="35" ry="14" fill={`url(#highlight-${uniqueId})`} transform="rotate(-10 50 22)" />
         <path d="M 28 82 A 35 15 0 0 0 72 82" fill="none" stroke="white" strokeWidth="2.5" strokeOpacity="0.25" strokeLinecap="round" />
-        
         <g fill="#4A4A4A" stroke="#4A4A4A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75">
           {mood.face === 'joy' && (
             <><path d="M35,45 Q40,40 45,45" fill="none" /><path d="M55,45 Q60,40 65,45" fill="none" /><path d="M40,56 Q50,66 60,56" fill="none" /></>
@@ -87,48 +132,58 @@ const SkyBackground = () => (
   </div>
 );
 
-export default function App() {
+// 主應用程式邏輯
+function MainApp() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentView, setCurrentView] = useState('home'); 
   
-  const [userName, setUserName] = useState(() => localStorage.getItem('memoryorbs_userName') || '小晴');
-  const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || INITIAL_MEMORIES);
-  const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || INITIAL_TODOS);
-  const [finances, setFinances] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_finances')) || []);
+  const [userName, setUserName] = useState(() => {
+    const stored = localStorage.getItem('memoryorbs_userName');
+    return (stored && stored !== 'undefined' && stored !== 'null') ? stored : '小晴';
+  });
+  
+  const [memories, setMemories] = useState(() => safeParse('memoryorbs_memories', []));
+  const [todos, setTodos] = useState(() => safeParse('memoryorbs_todos', []));
+  const [finances, setFinances] = useState(() => safeParse('memoryorbs_finances', []));
+  const [planetNames, setPlanetNames] = useState(() => safeParse('memoryorbs_planetNames', {}));
   
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [selectedDateModal, setSelectedDateModal] = useState(null); 
-  const [planetNames, setPlanetNames] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_planetNames')) || {});
   const [addingTodo, setAddingTodo] = useState(false);
   
   const todayStr = new Date().toISOString().split('T')[0];
   const [newTodoDraft, setNewTodoDraft] = useState({ text: '', date: todayStr });
   const [viewingMonth, setViewingMonth] = useState(() => {
-    const d = new Date(todayStr);
+    const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
 
   const [editingMemoryId, setEditingMemoryId] = useState(null);
 
-  useEffect(() => { localStorage.setItem('memoryorbs_userName', userName); }, [userName]);
-  useEffect(() => { localStorage.setItem('memoryorbs_memories', JSON.stringify(memories)); }, [memories]);
-  useEffect(() => { localStorage.setItem('memoryorbs_todos', JSON.stringify(todos)); }, [todos]);
-  useEffect(() => { localStorage.setItem('memoryorbs_finances', JSON.stringify(finances)); }, [finances]);
-  useEffect(() => { localStorage.setItem('memoryorbs_planetNames', JSON.stringify(planetNames)); }, [planetNames]);
+  // 安全存檔機制
+  useEffect(() => {
+    try {
+      localStorage.setItem('memoryorbs_userName', userName);
+      localStorage.setItem('memoryorbs_memories', JSON.stringify(memories));
+      localStorage.setItem('memoryorbs_todos', JSON.stringify(todos));
+      localStorage.setItem('memoryorbs_finances', JSON.stringify(finances));
+      localStorage.setItem('memoryorbs_planetNames', JSON.stringify(planetNames));
+    } catch (e) {
+      console.error('存檔失敗，可能是手機儲存空間已滿', e);
+    }
+  }, [userName, memories, todos, finances, planetNames]);
 
   const [memoryDraft, setMemoryDraft] = useState({
-    date: todayStr, text: '', mood: null,
-    weather: 'sun', music: '', period: 'none', images: []
+    date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: []
   });
 
-  // 記帳狀態：增加 type (支出/收入)
   const [financeDraft, setFinanceDraft] = useState({
     date: todayStr, amount: '', category: '飲食', note: '', type: 'expense'
   });
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (file && memoryDraft.images.length < 3) {
+    if (file && (memoryDraft.images || []).length < 3) {
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
@@ -140,9 +195,8 @@ export default function App() {
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-          
-          setMemoryDraft(prev => ({ ...prev, images: [...prev.images, compressedBase64] }));
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+          setMemoryDraft(prev => ({ ...prev, images: [...(prev.images || []), compressedBase64] }));
         };
         img.src = event.target.result;
       };
@@ -152,39 +206,41 @@ export default function App() {
 
   const removeDraftImage = (indexToRemove) => {
     setMemoryDraft(prev => ({
-      ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove)
+      ...prev, images: (prev.images || []).filter((_, idx) => idx !== indexToRemove)
     }));
   };
 
   const [statsTab, setStatsTab] = useState('mood');
 
   const handleMonthChange = (e) => {
+    if (!e.target.value) return;
     const [year, month] = e.target.value.split('-');
     setViewingMonth(new Date(year, month - 1, 1));
   };
   const handlePrevMonth = () => setViewingMonth(new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() - 1, 1));
   const handleNextMonth = () => setViewingMonth(new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() + 1, 1));
 
-  const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const toggleTodo = (id) => setTodos((todos || []).map(t => t?.id === id ? { ...t, done: !t?.done } : t));
 
   const handleAddTodo = () => {
     if (!newTodoDraft.text.trim()) return;
-    setTodos([...todos, { id: Date.now(), text: newTodoDraft.text, done: false, date: newTodoDraft.date }]);
+    setTodos([...(todos || []), { id: Date.now(), text: newTodoDraft.text, done: false, date: newTodoDraft.date }]);
     setNewTodoDraft({ text: '', date: todayStr });
     setAddingTodo(false);
   };
 
   const handleSaveMemory = () => {
     if (!memoryDraft.mood && !memoryDraft.text) return;
+    const safeMemories = memories || [];
     if (editingMemoryId) {
-      setMemories(memories.map(m => m.id === editingMemoryId ? { ...memoryDraft, id: editingMemoryId } : m));
+      setMemories(safeMemories.map(m => m?.id === editingMemoryId ? { ...memoryDraft, id: editingMemoryId } : m));
     } else {
-      const existingEntry = memories.find(m => m.date === memoryDraft.date);
+      const existingEntry = safeMemories.find(m => m?.date === memoryDraft.date);
       if (existingEntry) {
-        setMemories(memories.map(m => m.date === memoryDraft.date ? { ...memoryDraft, id: existingEntry.id } : m));
+        setMemories(safeMemories.map(m => m?.date === memoryDraft.date ? { ...memoryDraft, id: existingEntry.id } : m));
       } else {
         const newEntry = { id: Date.now(), ...memoryDraft };
-        setMemories([newEntry, ...memories]);
+        setMemories([newEntry, ...safeMemories]);
       }
     }
     setEditingMemoryId(null);
@@ -198,14 +254,14 @@ export default function App() {
       id: Date.now(), 
       ...financeDraft, 
       amount: Number(financeDraft.amount),
-      type: financeDraft.type || 'expense' // 確保有 type
+      type: financeDraft.type || 'expense' 
     };
-    setFinances([newFinance, ...finances]);
+    setFinances([newFinance, ...(finances || [])]);
     setFinanceDraft({ date: todayStr, amount: '', category: financeDraft.type === 'income' ? '薪水' : '飲食', note: '', type: financeDraft.type });
     setCurrentView('home');
   };
 
-  // --- 手帳自由排版 (DIY Scrapbook) ---
+  // --- 手帳自由排版 ---
   const [scrapbookItems, setScrapbookItems] = useState([]);
   const [dragInfo, setDragInfo] = useState(null);
   const maxZIndex = useRef(1);
@@ -264,8 +320,8 @@ export default function App() {
     const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
 
-    const currentMonthMemories = memories.filter(m => m.date.startsWith(currentMonthPrefix));
-    const hasActivePeriod = currentMonthMemories.some(m => m.date === todayStr && m.period !== 'none');
+    const currentMonthMemories = (memories || []).filter(m => m?.date?.startsWith(currentMonthPrefix));
+    const hasActivePeriod = currentMonthMemories.some(m => m?.date === todayStr && m?.period !== 'none');
 
     return (
       <div className="flex-1 overflow-y-auto pb-24 relative scroll-smooth">
@@ -313,7 +369,7 @@ export default function App() {
               {[...Array(daysInMonth).keys()].map(i => {
                 const day = i + 1;
                 const dateStr = `${currentMonthPrefix}-${day.toString().padStart(2, '0')}`;
-                const dayMemory = memories.find(m => m.date === dateStr);
+                const dayMemory = (memories || []).find(m => m?.date === dateStr);
                 const isToday = dateStr === todayStr;
                 const hasImage = dayMemory && dayMemory.images && dayMemory.images.length > 0;
 
@@ -377,11 +433,12 @@ export default function App() {
               </div>
             )}
 
-            {todos.length === 0 ? (
+            {(todos || []).length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-2">目前沒有安排待辦事項</p>
             ) : (
               <div className="space-y-3">
-                {todos.sort((a,b) => new Date(a.date) - new Date(b.date)).map(todo => {
+                {[...(todos || [])].sort((a,b) => new Date(a?.date || 0) - new Date(b?.date || 0)).map(todo => {
+                  if (!todo) return null;
                   const isPast = new Date(todo.date) < new Date(todayStr);
                   const isToday = todo.date === todayStr;
                   return (
@@ -417,7 +474,7 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
                 <div>
                   {(() => {
-                    const entry = memories.find(m => m.date === selectedDateModal);
+                    const entry = (memories || []).find(m => m?.date === selectedDateModal);
                     if (!entry) {
                       return (
                         <button onClick={() => {
@@ -432,14 +489,14 @@ export default function App() {
                     }
                     
                     const isUrl = entry.music?.startsWith('http');
-                    const musicLink = isUrl ? entry.music : `https://www.youtube.com/results?search_query=${encodeURIComponent(entry.music)}`;
+                    const musicLink = isUrl ? entry.music : `https://www.youtube.com/results?search_query=${encodeURIComponent(entry.music || '')}`;
 
                     return (
                       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
                         <div className="flex justify-between items-start mb-4">
                           <SvgOrb moodId={entry.mood} size="sm" customClass="shadow-sm" />
                           <button onClick={() => {
-                            setMemoryDraft({...entry});
+                            setMemoryDraft({ images: [], ...entry });
                             setEditingMemoryId(entry.id);
                             setSelectedDateModal(null);
                             setCurrentView('add_memory');
@@ -448,7 +505,7 @@ export default function App() {
                           </button>
                         </div>
 
-                        {entry.images.length > 0 && (
+                        {entry.images && entry.images.length > 0 && (
                           <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 no-scrollbar pb-4 -mx-1 px-1">
                             {entry.images.map((img, idx) => (
                               <img key={idx} src={img} className="w-[85%] flex-shrink-0 snap-center h-48 object-cover rounded-2xl shadow-sm border border-slate-50" alt="手帳照片" />
@@ -502,9 +559,9 @@ export default function App() {
                   </h3>
                   
                   {(() => {
-                    const dayFinances = finances.filter(f => f.date === selectedDateModal);
-                    const dayIncome = dayFinances.filter(f => f.type === 'income').reduce((s, f) => s + f.amount, 0);
-                    const dayExpense = dayFinances.filter(f => f.type !== 'income').reduce((s, f) => s + f.amount, 0);
+                    const dayFinances = (finances || []).filter(f => f?.date === selectedDateModal);
+                    const dayIncome = dayFinances.filter(f => f?.type === 'income').reduce((s, f) => s + (f?.amount || 0), 0);
+                    const dayExpense = dayFinances.filter(f => f?.type !== 'income').reduce((s, f) => s + (f?.amount || 0), 0);
 
                     return (
                       <div className="space-y-3">
@@ -513,11 +570,11 @@ export default function App() {
                             {dayFinances.map(f => (
                               <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 last:border-0 last:pb-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-xs font-bold">{f.category}</span>
+                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-xs font-bold">{f.category || '其他'}</span>
                                   <span className="text-slate-600 text-xs truncate max-w-[100px]">{f.note || '未備註'}</span>
                                 </div>
                                 <span className={`font-black ${f.type === 'income' ? 'text-green-500' : 'text-slate-700'}`}>
-                                  {f.type === 'income' ? '+' : '-'}${f.amount}
+                                  {f.type === 'income' ? '+' : '-'}${f.amount || 0}
                                 </span>
                               </div>
                             ))}
@@ -580,15 +637,15 @@ export default function App() {
           <div>
              <div className="flex items-center justify-between mb-2">
                <label className="font-bold">手帳照片紀錄</label>
-               {memoryDraft.images.length < 3 && (
+               {(memoryDraft.images || []).length < 3 && (
                  <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors font-bold">
-                   <Camera size={14} /> 新增照片 ({memoryDraft.images.length}/3)
+                   <Camera size={14} /> 新增照片 ({(memoryDraft.images || []).length}/3)
                  </label>
                )}
                <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
              </div>
              
-             {memoryDraft.images.length > 0 && (
+             {memoryDraft.images && memoryDraft.images.length > 0 && (
                <div className="flex gap-3 mt-3 overflow-x-auto no-scrollbar pb-1">
                  {memoryDraft.images.map((img, idx) => (
                    <div key={idx} className="relative inline-block flex-shrink-0">
@@ -691,15 +748,11 @@ export default function App() {
   };
 
   const renderStats = () => {
-    // 區分本月收入與支出
-    const currentMonthFinances = finances; // 如果想只看當月，這裡可加 .filter
-    const expensesOnly = currentMonthFinances.filter(f => f.type !== 'income');
-    
-    const totalIncome = currentMonthFinances.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
-    const totalExpense = expensesOnly.reduce((sum, f) => sum + f.amount, 0);
+    const expensesOnly = (finances || []).filter(f => f?.type !== 'income');
+    const totalIncome = (finances || []).filter(f => f?.type === 'income').reduce((sum, f) => sum + (f?.amount || 0), 0);
+    const totalExpense = expensesOnly.reduce((sum, f) => sum + (f?.amount || 0), 0);
     const netBalance = totalIncome - totalExpense;
     
-    // 計算支出圓餅圖比例
     const expenseCategories = ['飲食', '交通', '購物', '娛樂', '訂閱', '其他'];
     const colors = { '飲食': '#F59E0B', '交通': '#3B82F6', '購物': '#EC4899', '娛樂': '#8B5CF6', '訂閱': '#10B981', '其他': '#9CA3AF' };
     
@@ -707,7 +760,7 @@ export default function App() {
     const pieGradient = totalExpense === 0 
       ? '#f1f5f9 0% 100%' 
       : expenseCategories.map(cat => {
-          const catSum = expensesOnly.filter(f => f.category === cat).reduce((sum, f) => sum + f.amount, 0);
+          const catSum = expensesOnly.filter(f => f?.category === cat).reduce((sum, f) => sum + (f?.amount || 0), 0);
           const percent = (catSum / totalExpense) * 100;
           if (percent === 0) return '';
           const gradient = `${colors[cat]} ${cumulativePercent}% ${cumulativePercent + percent}%`;
@@ -715,7 +768,6 @@ export default function App() {
           return gradient;
         }).filter(Boolean).join(', ');
 
-    // 計算收支進度條
     const incomeRatio = (totalIncome + totalExpense) === 0 ? 50 : (totalIncome / (totalIncome + totalExpense)) * 100;
 
     return (
@@ -730,7 +782,7 @@ export default function App() {
             <h3 className="text-sm font-bold text-slate-700 mb-4">總情緒統計分佈</h3>
             <div className="space-y-4">
               {Object.keys(MOODS).map(k => {
-                const count = memories.filter(m => m.mood === k).length;
+                const count = (memories || []).filter(m => m?.mood === k).length;
                 return (
                   <div key={k} className="flex items-center gap-3">
                     <span className="text-xs font-bold text-slate-500 w-10">{MOODS[k].name}</span>
@@ -745,7 +797,6 @@ export default function App() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* 收支總覽進度條 */}
             <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 flex flex-col mb-2">
                <h3 className="text-sm font-bold text-slate-500 mb-4 w-full">收支總覽比例</h3>
                <div className="flex justify-between w-full mb-3">
@@ -776,7 +827,7 @@ export default function App() {
 
               <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 w-full mt-2">
                 {expenseCategories.map(cat => {
-                  const catSum = expensesOnly.filter(f => f.category === cat).reduce((sum, f) => sum + f.amount, 0);
+                  const catSum = expensesOnly.filter(f => f?.category === cat).reduce((sum, f) => sum + (f?.amount || 0), 0);
                   if (catSum === 0) return null;
                   return (
                     <div key={cat} className="flex items-center gap-1.5">
@@ -790,28 +841,30 @@ export default function App() {
 
             <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
               <h3 className="text-xs font-bold text-slate-400 mb-3 border-b border-slate-50 pb-2">明細列表</h3>
-              {finances.length === 0 ? (
+              {(!finances || finances.length === 0) ? (
                 <p className="text-xs text-slate-400 text-center py-4">目前尚無記帳開銷明細</p>
               ) : (
-                [...finances].sort((a,b) => new Date(b.date) - new Date(a.date)).map(f => (
+                [...finances].sort((a,b) => new Date(b?.date || 0) - new Date(a?.date || 0)).map(f => {
+                  if (!f) return null;
+                  return (
                   <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-start gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0 ${f.type === 'income' ? 'bg-green-500' : ''}`} style={f.type !== 'income' ? { backgroundColor: colors[f.category] || colors['其他'] } : {}}>
-                        {f.category[0]}
+                        {f.category?.[0] || '?'}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-700">{f.category}</span>
+                          <span className="font-bold text-slate-700">{f.category || '未分類'}</span>
                           <span className="text-slate-400 text-xs truncate max-w-[100px]">{f.note || '未備註'}</span>
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{f.date}</p>
                       </div>
                     </div>
                     <span className={`font-black ${f.type === 'income' ? 'text-green-600' : 'text-slate-700'}`}>
-                      {f.type === 'income' ? '+' : '-'}${f.amount}
+                      {f.type === 'income' ? '+' : '-'}${f.amount || 0}
                     </span>
                   </div>
-                ))
+                )})
               )}
             </div>
           </div>
@@ -821,21 +874,20 @@ export default function App() {
   };
 
   const renderStorage = () => {
-    // 依照 YYYY-MM 將記憶分類歸檔
-    const groupedMemories = memories.reduce((acc, m) => {
-      const month = m.date.substring(0, 7); // 擷取 YYYY-MM
+    const groupedMemories = (memories || []).reduce((acc, m) => {
+      const month = m?.date ? m.date.substring(0, 7) : 'Unknown';
       if (!acc[month]) acc[month] = [];
       acc[month].push(m);
       return acc;
     }, {});
     
-    // 排序月份，最新的在最上面
     const sortedMonths = Object.keys(groupedMemories).sort((a, b) => b.localeCompare(a));
 
     const handlePlanetClick = (monthStr) => {
+      if (monthStr === 'Unknown') return;
       const [year, month] = monthStr.split('-');
       setViewingMonth(new Date(year, month - 1, 1));
-      setCurrentView('home'); // 直接跳轉到首頁查看該月日曆
+      setCurrentView('home'); 
     };
 
     return (
@@ -850,13 +902,11 @@ export default function App() {
              <div className="grid grid-cols-2 gap-4">
                {sortedMonths.map(monthStr => {
                  const monthMemories = groupedMemories[monthStr];
-                 const defaultName = `${monthStr.replace('-', ' 年 ')} 月`;
-                 const pName = planetNames[monthStr] || defaultName;
+                 const defaultName = monthStr === 'Unknown' ? '未知時空碎片' : `${monthStr.replace('-', ' 年 ')} 月`;
+                 const pName = (planetNames || {})[monthStr] || defaultName;
 
                  return (
                    <div key={monthStr} className="bg-slate-800/60 rounded-3xl p-4 border border-slate-700/50 flex flex-col items-center relative overflow-hidden group">
-                      
-                      {/* 可點擊跳轉的星球本體 */}
                       <div 
                         onClick={() => handlePlanetClick(monthStr)}
                         className="w-24 h-24 rounded-full bg-slate-800 shadow-[0_0_20px_rgba(0,0,0,0.5)] mb-4 relative overflow-hidden flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
@@ -868,10 +918,10 @@ export default function App() {
                                const size = 50 + ((idx * 73) % 60); 
                                return (
                                  <div
-                                    key={m.id}
+                                    key={m?.id || idx}
                                     className="absolute rounded-full blur-[6px] opacity-80"
                                     style={{
-                                       backgroundColor: MOODS[m.mood]?.dark || '#fff',
+                                       backgroundColor: MOODS[m?.mood]?.dark || '#fff',
                                        width: `${size}%`,
                                        height: `${size}%`,
                                        top: `${y}%`,
@@ -884,7 +934,6 @@ export default function App() {
                          <div className="absolute inset-0 rounded-full shadow-[inset_-10px_-10px_20px_rgba(0,0,0,0.8),inset_3px_3px_10px_rgba(255,255,255,0.4)] pointer-events-none z-10"></div>
                       </div>
 
-                      {/* 可編輯的星球名稱 */}
                       <div className="flex items-center gap-1.5 w-full justify-center">
                          <input 
                            type="text" 
@@ -896,10 +945,11 @@ export default function App() {
                          <Edit2 size={10} className="text-slate-500 flex-shrink-0" />
                       </div>
                       
-                      {/* 點擊提示小標籤 */}
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <span className="bg-amber-500/80 text-[8px] px-1.5 py-0.5 rounded text-white font-bold">查看</span>
-                      </div>
+                      {monthStr !== 'Unknown' && (
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          <span className="bg-amber-500/80 text-[8px] px-1.5 py-0.5 rounded text-white font-bold">查看</span>
+                        </div>
+                      )}
                    </div>
                  );
                })}
@@ -919,14 +969,14 @@ export default function App() {
       </div>
 
       <div className="flex-1 relative overflow-hidden touch-none" style={{ touchAction: 'none' }}>
-        {scrapbookItems.length === 0 && (
+        {(scrapbookItems || []).length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 p-8 text-center pointer-events-none">
             <StickyNote size={48} className="mb-2 stroke-1" />
             <p className="text-xs">月底自由手帳畫布<br/>點擊下方工具欄加入照片、文字或紙膠帶，自由拖曳拼貼</p>
           </div>
         )}
         
-        {scrapbookItems.map(item => (
+        {(scrapbookItems || []).map(item => (
           <div 
             key={item.id}
             onPointerDown={(e) => handlePointerDown(e, item.id)}
@@ -999,7 +1049,7 @@ export default function App() {
            ) : (
              <h2 onClick={() => setIsEditingName(true)} className="text-lg font-bold text-slate-700 flex items-center gap-2 cursor-pointer hover:text-amber-600 transition">{userName} <Edit2 size={14} className="text-slate-300"/></h2>
            )}
-           <p className="text-xs text-slate-400 mt-1">累積封存了 {memories.length} 顆記憶球</p>
+           <p className="text-xs text-slate-400 mt-1">累積封存了 {(memories || []).length} 顆記憶球</p>
          </div>
       </div>
       <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
@@ -1091,5 +1141,14 @@ export default function App() {
         )}
       </div>
     </div>
+  );
+}
+
+// 確保匯出被防護罩包覆的主元件
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
 }
