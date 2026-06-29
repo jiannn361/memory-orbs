@@ -6,7 +6,7 @@ import {
   Calendar as CalendarIcon, Archive, X, ChevronRight,
   Sun, Cloud, CloudRain, Snowflake, Music, 
   Footprints, Droplets, CheckCircle2, Circle,
-  ScanFace, Share2, Edit2, PlaySquare, Type, StickyNote, Trash2, Play
+  ScanFace, Edit2, PlaySquare, Type, StickyNote, Trash2, Play
 } from 'lucide-react';
 
 // --- 設定常數：莫蘭迪色系 (Morandi Colors) ---
@@ -17,9 +17,14 @@ const MOODS = {
   disgust: { id: 'disgust', name: '厭惡', light: '#D3DDD4', dark: '#839987', face: 'disgust' }, // 莫蘭迪綠灰
 };
 
-// --- 已經清空的所有測試資料 ---
-const INITIAL_MEMORIES = [];
-const INITIAL_TODOS = [];
+const CATEGORY_COLORS = {
+  '飲食': '#F59E0B', // Amber
+  '交通': '#3B82F6', // Blue
+  '購物': '#EC4899', // Pink
+  '娛樂': '#8B5CF6', // Purple
+  '訂閱': '#14B8A6', // Teal
+  '其他': '#94A3B8'  // Slate
+};
 
 // --- 組件：立體玻璃記憶球 (Glass Orb) ---
 const SvgOrb = ({ moodId, size = 'md', isSelected = false, onClick, customClass = '' }) => {
@@ -95,39 +100,51 @@ export default function App() {
   const [currentView, setCurrentView] = useState('home'); 
   
   // 導入 localStorage
-  const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || INITIAL_MEMORIES);
-  const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || INITIAL_TODOS);
+  const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || []);
+  const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || []);
   const [finances, setFinances] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_finances')) || []);
+  const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '未命名的小宇宙');
+  const [userName, setUserName] = useState(() => localStorage.getItem('memoryorbs_userName') || '小晴');
+
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [selectedDateModal, setSelectedDateModal] = useState(null); 
+  const [actionMenuDate, setActionMenuDate] = useState(null); // 用於點擊空白日期時彈出
   
-  const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '未命名的小宇宙');
   const [addingTodo, setAddingTodo] = useState(false);
   const [newTodoDraft, setNewTodoDraft] = useState({ text: '', date: new Date().toISOString().split('T')[0] });
   const [editingMemoryId, setEditingMemoryId] = useState(null);
+
+  // 日期狀態 (控制日曆與圖表顯示的年月)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [displayDate, setDisplayDate] = useState(new Date());
 
   useEffect(() => { localStorage.setItem('memoryorbs_memories', JSON.stringify(memories)); }, [memories]);
   useEffect(() => { localStorage.setItem('memoryorbs_todos', JSON.stringify(todos)); }, [todos]);
   useEffect(() => { localStorage.setItem('memoryorbs_finances', JSON.stringify(finances)); }, [finances]);
   useEffect(() => { localStorage.setItem('memoryorbs_planetName', planetName); }, [planetName]);
-
-  const todayStr = new Date().toISOString().split('T')[0];
+  useEffect(() => { localStorage.setItem('memoryorbs_userName', userName); }, [userName]);
 
   const [memoryDraft, setMemoryDraft] = useState({
     date: todayStr, text: '', mood: null,
     weather: 'sun', music: '', period: 'none', images: []
   });
 
-  // 完美解決照片不見的問題：使用 Canvas 壓縮並轉換成 Base64 永久儲存
+  const [financeDraft, setFinanceDraft] = useState({
+    date: todayStr, amount: '', category: '飲食', note: ''
+  });
+
+  const [statsTab, setStatsTab] = useState('mood');
+
+  // 多圖上傳邏輯 (上限 3 張)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (memoryDraft.images.length >= 3) return; // 限制 3 張
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          // 設定最大寬度以節省儲存空間 (防止 localStorage 爆掉)
           const MAX_WIDTH = 600; 
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
@@ -136,9 +153,8 @@ export default function App() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // 轉換成 Base64 字串 (0.7 代表壓縮品質)
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-          setMemoryDraft(prev => ({ ...prev, images: [compressedBase64] }));
+          setMemoryDraft(prev => ({ ...prev, images: [...prev.images, compressedBase64] }));
         };
         img.src = event.target.result;
       };
@@ -146,11 +162,12 @@ export default function App() {
     }
   };
 
-  const [financeDraft, setFinanceDraft] = useState({
-    date: todayStr, amount: '', category: '飲食', note: ''
-  });
-
-  const [statsTab, setStatsTab] = useState('mood');
+  const removeDraftImage = (index) => {
+    setMemoryDraft(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
 
   const toggleTodo = (id) => {
     setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
@@ -191,51 +208,17 @@ export default function App() {
     setCurrentView('home');
   };
 
-  // --- 手帳自由排版 (DIY Scrapbook) 狀態 ---
-  const [scrapbookItems, setScrapbookItems] = useState([]);
-  const [dragInfo, setDragInfo] = useState(null);
-  const maxZIndex = useRef(1);
-
-  const handlePointerDown = (e, id) => {
-    e.target.setPointerCapture(e.pointerId);
-    const item = scrapbookItems.find(i => i.id === id);
-    maxZIndex.current += 1;
-    setDragInfo({ id, startX: e.clientX, startY: e.clientY, initX: item.x, initY: item.y });
-    setScrapbookItems(items => items.map(i => i.id === id ? { ...i, zIndex: maxZIndex.current } : i));
+  const changeMonth = (offset) => {
+    const newDate = new Date(displayDate.getFullYear(), displayDate.getMonth() + offset, 1);
+    setDisplayDate(newDate);
   };
 
-  const handlePointerMove = (e) => {
-    if (!dragInfo) return;
-    const dx = e.clientX - dragInfo.startX;
-    const dy = e.clientY - dragInfo.startY;
-    setScrapbookItems(items => items.map(i => i.id === dragInfo.id ? { ...i, x: dragInfo.initX + dx, y: dragInfo.initY + dy } : i));
-  };
-
-  const handlePointerUp = (e) => {
-    if (!dragInfo) return;
-    e.target.releasePointerCapture(e.pointerId);
-    setDragInfo(null);
-  };
-
-  const addScrapbookItem = (type) => {
-    maxZIndex.current += 1;
-    const newItem = {
-      id: Date.now().toString(),
-      type,
-      x: 60 + Math.random() * 60,
-      y: 120 + Math.random() * 60,
-      rotation: (Math.random() - 0.5) * 15,
-      scale: 1,
-      zIndex: maxZIndex.current,
-      url: type === 'photo' ? 'image_be7f1e.jpg' : null,
-      content: type === 'text' ? '點擊編輯文字' : null,
-      color: type === 'tape' ? 'amber' : null
-    };
-    setScrapbookItems([...scrapbookItems, newItem]);
-  };
-
-  const removeScrapbookItem = (id) => {
-    setScrapbookItems(items => items.filter(i => i.id !== id));
+  const handleDayClick = (dateStr, dayMemory) => {
+    if (dayMemory) {
+      setSelectedDateModal(dateStr);
+    } else {
+      setActionMenuDate(dateStr);
+    }
   };
 
   if (!isUnlocked) {
@@ -257,9 +240,8 @@ export default function App() {
   }
 
   const renderHome = () => {
-    const dateObj = new Date(todayStr);
-    const currentYear = dateObj.getFullYear();
-    const currentMonth = dateObj.getMonth() + 1;
+    const currentYear = displayDate.getFullYear();
+    const currentMonth = displayDate.getMonth() + 1;
     const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
@@ -275,16 +257,32 @@ export default function App() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-800 tracking-wide">生活手帳日誌</h1>
-              <p className="text-xs font-bold text-slate-500 mt-1">{currentYear} 年 {currentMonth} 月</p>
               {hasActivePeriod && (
                 <div className="inline-flex items-center gap-1 mt-2 px-3 py-1 bg-red-50/80 backdrop-blur-sm text-red-700/80 rounded-full text-xs font-bold border border-red-100">
                   <Droplets size={12} /> 生理期記錄中
                 </div>
               )}
             </div>
-            <button onClick={() => setCurrentView('dump')} className="w-10 h-10 bg-white/60 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-slate-600 border border-white hover:scale-105 transition">
-              <Share2 size={18} />
-            </button>
+          </div>
+
+          {/* 月份切換控制器 */}
+          <div className="flex items-center justify-between bg-white/40 backdrop-blur-md rounded-2xl p-2 mb-6 border border-white/60 shadow-sm">
+             <button onClick={() => changeMonth(-1)} className="p-2 text-slate-600 hover:bg-white/60 rounded-xl transition"><ChevronLeft size={20}/></button>
+             <div className="relative font-bold text-slate-700 tracking-wider">
+               <span>{currentYear} 年 {currentMonth} 月</span>
+               <input 
+                 type="date" 
+                 value={`${currentMonthPrefix}-01`}
+                 onChange={(e) => {
+                   if(e.target.value) {
+                     // 轉換格式確保跨瀏覽器相容，並準確跳轉到選定的年月日
+                     setDisplayDate(new Date(e.target.value.replace(/-/g, '/')));
+                   }
+                 }} 
+                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+               />
+             </div>
+             <button onClick={() => changeMonth(1)} className="p-2 text-slate-600 hover:bg-white/60 rounded-xl transition"><ChevronRight size={20}/></button>
           </div>
 
           {/* 玻璃記憶罐 */}
@@ -298,7 +296,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 1. 相片日曆網格 */}
+          {/* 相片日曆網格 */}
           <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-5 shadow-sm border border-white/60 mb-6 relative">
             <div className="grid grid-cols-7 gap-2 mb-3 text-center text-xs font-bold text-slate-400">
               {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
@@ -314,11 +312,12 @@ export default function App() {
 
                 return (
                   <div 
-                    key={day} onClick={() => dayMemory && setSelectedDateModal(dateStr)}
+                    key={day} 
+                    onClick={() => handleDayClick(dateStr, dayMemory)}
                     className={`
-                      relative aspect-square flex flex-col items-center justify-center rounded-xl transition-all overflow-hidden
+                      relative aspect-square flex flex-col items-center justify-center rounded-xl transition-all overflow-hidden cursor-pointer
                       ${isToday ? 'ring-2 ring-slate-400 bg-white shadow-sm' : 'bg-slate-100/40'}
-                      ${dayMemory ? 'cursor-pointer shadow-xs hover:scale-105' : ''}
+                      ${dayMemory ? 'shadow-xs hover:scale-105' : 'hover:bg-slate-200/50'}
                     `}
                   >
                     {hasImage ? (
@@ -346,13 +345,13 @@ export default function App() {
             </div>
           </div>
 
-          {/* 2. 待辦事項區塊 (置於下方) */}
+          {/* 待辦事項區塊 */}
           <div className="bg-white/60 backdrop-blur-md rounded-3xl p-5 shadow-xs border border-white/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-slate-500" /> 備忘規劃事項
               </h3>
-              <button onClick={() => setAddingTodo(!addingTodo)} className="text-slate-600 bg-slate-200/60 p-1.5 rounded-full">
+              <button onClick={() => setAddingTodo(!addingTodo)} className="text-slate-600 bg-slate-200/60 p-1.5 rounded-full hover:bg-slate-300 transition-colors">
                 <Plus size={14} />
               </button>
             </div>
@@ -397,10 +396,8 @@ export default function App() {
 
         {/* 檢視特定日期細節卡片 */}
         {selectedDateModal && (
-          <div className="absolute inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-6">
-            {/* 解決排版打到叉叉的問題：加入 pt-10 預留空間給關閉按鈕 */}
+          <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative p-6 pt-10 border border-slate-100">
-              {/* 關閉按鈕 */}
               <button onClick={() => setSelectedDateModal(null)} className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-slate-500 z-20">
                 <X size={18} />
               </button>
@@ -409,9 +406,8 @@ export default function App() {
                 const entry = memories.find(m => m.date === selectedDateModal);
                 if (!entry) return null;
                 
-                // 判斷是否為音樂網址，如果不是，就自動建立 YouTube 搜尋網址
                 const isUrl = entry.music?.startsWith('http');
-                const musicLink = isUrl ? entry.music : `https://www.youtube.com/results?search_query=${encodeURIComponent(entry.music)}`;
+                const musicLink = isUrl ? entry.music : `https://www.youtube.com/results?search_query=${encodeURIComponent(entry.music || '')}`;
 
                 return (
                   <div className="space-y-5 max-h-[75vh] overflow-y-auto no-scrollbar pb-4">
@@ -430,24 +426,21 @@ export default function App() {
                       <SvgOrb moodId={entry.mood} size="sm" customClass="shadow-sm" />
                     </div>
                     
-                    {entry.images.length > 0 && (
-                      <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-100 relative group">
-                         <img src={entry.images[0]} className="w-full h-48 object-cover hover:scale-105 transition-transform duration-700" alt="手帳照片" />
+                    {entry.images && entry.images.length > 0 && (
+                      <div className="flex overflow-x-auto gap-3 snap-x no-scrollbar pb-2">
+                        {entry.images.map((img, idx) => (
+                           <img key={idx} src={img} className="w-[85%] flex-shrink-0 snap-center h-48 object-cover rounded-2xl shadow-sm border border-slate-100" alt={`手帳照片 ${idx+1}`} />
+                        ))}
                       </div>
                     )}
                     
-                    {/* --- 全新黑膠唱片機 BGM UI --- */}
                     {entry.music && (
                       <a href={musicLink} target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 p-3 rounded-2xl hover:shadow-md transition-all group relative overflow-hidden">
                         <div className="flex items-center gap-4 relative z-10">
-                           {/* 會自轉的黑膠唱片 */}
                            <div className="relative w-14 h-14 rounded-full bg-slate-900 shadow-lg border-4 border-slate-800 group-hover:animate-[spin_3s_linear_infinite] flex items-center justify-center flex-shrink-0">
-                              {/* 唱片紋路 */}
                               <div className="absolute inset-1 rounded-full border border-slate-700/50"></div>
                               <div className="absolute inset-2.5 rounded-full border border-slate-700/50"></div>
-                              {/* 中間彩色標籤 */}
                               <div className="w-5 h-5 rounded-full bg-amber-400 border border-slate-800 flex items-center justify-center">
-                                 {/* 唱片孔 */}
                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-900"></div>
                               </div>
                            </div>
@@ -463,13 +456,12 @@ export default function App() {
                              <Play size={14} className="ml-0.5" />
                            </div>
                         </div>
-                        {/* 裝飾背景 */}
                         <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-amber-100 rounded-full opacity-20 blur-xl"></div>
                       </a>
                     )}
 
                     <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-sm text-slate-600 leading-loose whitespace-pre-wrap font-medium">{entry.text}</p>
+                      <p className="text-sm text-slate-600 leading-loose whitespace-pre-wrap font-medium">{entry.text || '今天沒有留下文字內容...'}</p>
                     </div>
                     
                     <div className="flex gap-4 text-xs font-bold text-slate-400 pt-2 px-1">
@@ -484,157 +476,168 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* 點擊空白日期彈出快速動作選單 */}
+        {actionMenuDate && (
+          <div className="absolute inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex flex-col justify-end">
+             <div className="bg-white rounded-t-[2.5rem] p-6 pb-10 shadow-2xl animate-[slideUp_0.3s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                   <h3 className="text-lg font-bold text-slate-800">{actionMenuDate.replace(/-/g, '.')}</h3>
+                   <button onClick={() => setActionMenuDate(null)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={18}/></button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                   <button onClick={() => {
+                      setMemoryDraft({ date: actionMenuDate, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
+                      setCurrentView('add_memory');
+                      setActionMenuDate(null);
+                   }} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center gap-2 hover:bg-amber-50 transition-colors">
+                      <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center"><Smile size={24}/></div>
+                      <span className="text-sm font-bold text-slate-700">寫日記</span>
+                   </button>
+                   <button onClick={() => {
+                      setFinanceDraft({ date: actionMenuDate, amount: '', category: '飲食', note: '' });
+                      setCurrentView('add_finance');
+                      setActionMenuDate(null);
+                   }} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center gap-2 hover:bg-blue-50 transition-colors">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center"><DollarSign size={24}/></div>
+                      <span className="text-sm font-bold text-slate-700">記一筆帳</span>
+                   </button>
+                </div>
+             </div>
+          </div>
+        )}
+
       </div>
     );
   };
 
-  // --- 手帳自由剪貼畫布 (DIY Scrapbook) ---
-  const renderScrapbook = () => (
-    <div className="flex-1 bg-[#FBF9F4] flex flex-col relative overflow-hidden">
-      <div className="px-6 pt-12 pb-4 flex justify-between items-center z-20 bg-[#FBF9F4]">
-        <button onClick={() => setCurrentView('home')} className="p-2 bg-white rounded-full text-slate-600 shadow-xs"><X size={20} /></button>
-        <span className="text-sm font-bold text-slate-500 tracking-widest">MONTHLY DUMP PUNCH</span>
-        <button className="px-4 py-1.5 bg-slate-700 text-white rounded-full text-xs font-bold shadow-xs">匯出</button>
-      </div>
+  // --- 統計數據頁面 ---
+  const renderStats = () => {
+    const currentYear = displayDate.getFullYear();
+    const currentMonth = displayDate.getMonth() + 1;
+    const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
+    
+    // 篩選當前月份的記帳資料
+    const monthFinances = finances.filter(f => f.date.startsWith(currentMonthPrefix));
+    const totalAmount = monthFinances.reduce((acc, curr) => acc + curr.amount, 0);
 
-      <div className="flex-1 relative overflow-hidden touch-none" style={{ touchAction: 'none' }}>
-        {scrapbookItems.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 p-8 text-center pointer-events-none">
-            <StickyNote size={48} className="mb-2 stroke-1" />
-            <p className="text-xs">月底自由手帳畫布<br/>點擊下方工具欄加入照片、文字或紙膠帶，自由拖曳拼貼</p>
+    // 計算各分類支出與圓餅圖所需資料
+    const financeData = monthFinances.reduce((acc, f) => {
+        acc[f.category] = (acc[f.category] || 0) + f.amount;
+        return acc;
+    }, {});
+
+    let cumulativePercent = 0;
+    const gradientStops = Object.entries(financeData).map(([cat, amount]) => {
+        const percent = (amount / totalAmount) * 100;
+        const start = cumulativePercent;
+        cumulativePercent += percent;
+        return `${CATEGORY_COLORS[cat] || '#94A3B8'} ${start}% ${cumulativePercent}%`;
+    });
+    const pieGradient = `conic-gradient(${gradientStops.length > 0 ? gradientStops.join(', ') : '#f1f5f9 0% 100%'})`;
+
+    return (
+      <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
+        <div className="flex items-center justify-between mb-6">
+           <h1 className="text-2xl font-bold text-slate-800 tracking-wide">數據統計</h1>
+           <div className="bg-white px-3 py-1.5 rounded-full text-xs font-bold text-slate-500 shadow-sm border border-slate-100">
+              {currentYear} 年 {currentMonth} 月
+           </div>
+        </div>
+
+        <div className="flex justify-center bg-slate-200/60 p-1 rounded-xl mb-6">
+          <button onClick={() => setStatsTab('mood')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${statsTab === 'mood' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400'}`}>情緒玻璃球</button>
+          <button onClick={() => setStatsTab('finance')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${statsTab === 'finance' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400'}`}>記帳開銷分析</button>
+        </div>
+
+        {statsTab === 'mood' ? (
+          <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">月度情緒統計分佈</h3>
+            <div className="space-y-4">
+              {Object.keys(MOODS).map(k => {
+                const count = memories.filter(m => m.mood === k && m.date.startsWith(currentMonthPrefix)).length;
+                return (
+                  <div key={k} className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-slate-500 w-10">{MOODS[k].name}</span>
+                    <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-1000" style={{ backgroundColor: MOODS[k].dark, width: `${count ? Math.min(count * 20, 100) : 5}%` }}></div>
+                    </div>
+                    <span className="text-xs text-slate-400 font-bold">{count} 顆</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* 圓餅圖與總計區塊 */}
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
+              <div className="flex flex-col items-center">
+                 <h3 className="text-sm font-bold text-slate-500 mb-1">當月總支出</h3>
+                 <p className="text-3xl font-black text-slate-800 mb-6">NT$ {totalAmount}</p>
+                 
+                 <div className="relative w-40 h-40 rounded-full flex items-center justify-center shadow-inner" style={{ background: pieGradient }}>
+                    {/* 甜甜圈中心留白 */}
+                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-md">
+                       <PieChart className="text-slate-300 opacity-50" size={32} />
+                    </div>
+                 </div>
+
+                 {/* 分類標籤圖例 */}
+                 <div className="flex flex-wrap justify-center gap-3 mt-6">
+                    {Object.entries(financeData).map(([cat, amount]) => (
+                      <div key={cat} className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                         <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: CATEGORY_COLORS[cat] }}></span>
+                         {cat} <span className="text-slate-400">({Math.round((amount/totalAmount)*100)}%)</span>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+            </div>
+
+            {/* 記帳明細列表 */}
+            <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
+              <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-50 pb-2">消費明細</h3>
+              {monthFinances.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">本月尚無記帳紀錄</p>
+              ) : (
+                monthFinances.sort((a,b) => new Date(b.date) - new Date(a.date)).map(f => (
+                  <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                    <div>
+                      <div className="flex items-center mb-1">
+                         <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: CATEGORY_COLORS[f.category] }}></span>
+                         <span className="font-bold text-slate-700 text-xs mr-2">{f.category}</span>
+                         <span className="text-[10px] text-slate-400">{f.date}</span>
+                      </div>
+                      <span className="text-slate-500 text-xs pl-4">{f.note || '未備註'}</span>
+                    </div>
+                    <span className="font-bold text-slate-700">-${f.amount}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
-        
-        {scrapbookItems.map(item => (
-          <div 
-            key={item.id}
-            onPointerDown={(e) => handlePointerDown(e, item.id)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            className={`absolute cursor-move transition-transform ${dragInfo?.id === item.id ? 'scale-105 shadow-xl' : 'shadow-xs'}`}
-            style={{ 
-              transform: `translate(${item.x}px, ${item.y}px) rotate(${item.rotation}deg)`,
-              zIndex: item.zIndex,
-              userSelect: 'none'
-            }}
-          >
-             {dragInfo?.id === item.id && (
-               <button 
-                 onPointerDown={(e) => { e.stopPropagation(); removeScrapbookItem(item.id); }}
-                 className="absolute -top-3 -right-3 w-5 h-5 bg-slate-500 text-white rounded-full flex items-center justify-center z-50 text-[10px]"
-               ><X size={10}/></button>
-             )}
-
-             {item.type === 'photo' && (
-               <div className="bg-white p-2 pb-6 border border-slate-100 rounded-xs pointer-events-none">
-                 <div className="w-32 h-32 bg-slate-200 rounded-xs flex items-center justify-center text-slate-400 text-xs">相簿照片素材</div>
-               </div>
-             )}
-             {item.type === 'video' && (
-               <div className="bg-white p-2 pb-6 border border-slate-100 rounded-xs pointer-events-none">
-                 <div className="w-32 h-32 bg-slate-300 rounded-xs flex items-center justify-center text-slate-500 text-xs"><PlaySquare size={20}/></div>
-               </div>
-             )}
-             {item.type === 'text' && (
-               <div className="text-lg text-slate-700 font-bold px-2 pointer-events-none bg-white/40 rounded">
-                 {item.content}
-               </div>
-             )}
-             {item.type === 'tape' && (
-               <div className="w-20 h-5 bg-amber-200/40 border-x border-dashed border-amber-300 pointer-events-none"></div>
-             )}
-          </div>
-        ))}
       </div>
-
-      <div className="bg-white border-t border-slate-50 p-4 pb-8 flex justify-around z-20 shadow-lg">
-         <button onClick={() => addScrapbookItem('photo')} className="flex flex-col items-center gap-1 text-slate-500">
-           <ImageIcon size={20}/><span className="text-[9px] font-bold">照片</span>
-         </button>
-         <button onClick={() => addScrapbookItem('video')} className="flex flex-col items-center gap-1 text-slate-500">
-           <PlaySquare size={20}/><span className="text-[9px] font-bold">影片</span>
-         </button>
-         <button onClick={() => addScrapbookItem('text')} className="flex flex-col items-center gap-1 text-slate-500">
-           <Type size={20}/><span className="text-[9px] font-bold">文字</span>
-         </button>
-         <button onClick={() => addScrapbookItem('tape')} className="flex flex-col items-center gap-1 text-slate-500">
-           <StickyNote size={20}/><span className="text-[9px] font-bold">紙膠帶</span>
-         </button>
-      </div>
-    </div>
-  );
-
-  // --- 統計數據頁面 ---
-  const renderStats = () => (
-    <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
-      <div className="flex justify-center bg-slate-200/60 p-1 rounded-xl mb-6">
-        <button onClick={() => setStatsTab('mood')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${statsTab === 'mood' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400'}`}>情緒玻璃球</button>
-        <button onClick={() => setStatsTab('finance')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${statsTab === 'finance' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400'}`}>記帳開銷明細</button>
-      </div>
-
-      {statsTab === 'mood' ? (
-        <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
-          <h3 className="text-sm font-bold text-slate-700 mb-4">月度情緒統計分佈</h3>
-          <div className="space-y-4">
-            {Object.keys(MOODS).map(k => {
-              const count = memories.filter(m => m.mood === k).length;
-              return (
-                <div key={k} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-500 w-10">{MOODS[k].name}</span>
-                  <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ backgroundColor: MOODS[k].dark, width: `${count ? Math.min(count * 20, 100) : 5}%` }}></div>
-                  </div>
-                  <span className="text-xs text-slate-400 font-bold">{count} 顆</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
-            <h3 className="text-sm font-bold text-slate-700 mb-2">總支出開銷</h3>
-            <p className="text-2xl font-black text-slate-800">NT$ {finances.reduce((acc, curr) => acc + curr.amount, 0)}</p>
-          </div>
-          <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
-            {finances.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-4">目前尚無記帳開銷明細</p>
-            ) : (
-              finances.map(f => (
-                <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                  <div>
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-xs font-bold mr-2">{f.category}</span>
-                    <span className="text-slate-600 text-xs">{f.note || '未備註'}</span>
-                  </div>
-                  <span className="font-bold text-slate-700">-${f.amount}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   // --- 大腦儲藏室 (動態記憶星球) ---
   const renderStorage = () => {
-    const currentMonthMemories = memories;
-
     return (
       <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12">
          <h1 className="text-xl font-bold mb-1 flex items-center gap-2"><Archive className="text-amber-400" /> 大腦儲藏空間</h1>
-         <p className="text-xs text-slate-400 mb-8">月底自動封存的星雲集合</p>
+         <p className="text-xs text-slate-400 mb-8">歷史封存的星雲集合 (包含所有月份紀錄)</p>
 
          <div className="space-y-6">
            <div className="bg-slate-800/60 rounded-3xl p-6 border border-slate-700/50 flex flex-col items-center">
               
               <div className="w-40 h-40 rounded-full bg-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] mb-6 relative overflow-hidden flex items-center justify-center">
                  <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
-                   {currentMonthMemories.length === 0 ? (
+                   {memories.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600 font-bold z-20">尚未形成星雲</div>
                    ) : (
-                      currentMonthMemories.map((m, idx) => {
+                      memories.map((m, idx) => {
                          const x = (idx * 137) % 120 - 10; 
                          const y = (idx * 251) % 120 - 10;
                          const size = 50 + ((idx * 73) % 60); 
@@ -668,7 +671,7 @@ export default function App() {
     );
   };
 
-  // --- 新增/編輯 功能表單頁面 ---
+  // --- 新增/編輯 日記 功能表單頁面 ---
   const renderAddMemory = () => (
     <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
       <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
@@ -678,7 +681,7 @@ export default function App() {
           setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
         }} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
         <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活日誌' : '生活日誌封存'}</h2>
-        <button onClick={handleSaveMemory} className="p-2 bg-slate-800 rounded-full text-white"><Check size={18} /></button>
+        <button onClick={handleSaveMemory} className="p-2 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition"><Check size={18} /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
@@ -699,23 +702,29 @@ export default function App() {
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs text-slate-500">
           <div>
              <div className="flex items-center justify-between mb-2">
-               <label className="font-bold">照片紀錄</label>
-               <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors">
-                 <Camera size={14} /> 從相簿選擇
-               </label>
+               <label className="font-bold flex items-center gap-2">照片紀錄 <span className="text-[10px] font-normal text-slate-400">(最多 3 張)</span></label>
+               {memoryDraft.images.length < 3 && (
+                 <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors">
+                   <Camera size={14} /> 新增照片
+                 </label>
+               )}
                <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
              </div>
              {memoryDraft.images.length > 0 && (
-               <div className="relative inline-block mt-2">
-                 <img src={memoryDraft.images[0]} alt="預覽" className="h-24 w-24 object-cover rounded-xl border border-slate-200 shadow-sm" />
-                 <button onClick={() => setMemoryDraft({...memoryDraft, images: []})} className="absolute -top-2 -right-2 bg-slate-800 text-white p-1 rounded-full shadow-md"><X size={12} /></button>
+               <div className="flex gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar">
+                 {memoryDraft.images.map((img, idx) => (
+                   <div key={idx} className="relative inline-block flex-shrink-0">
+                     <img src={img} alt="預覽" className="h-24 w-24 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                     <button onClick={() => removeDraftImage(idx)} className="absolute -top-2 -right-2 bg-slate-800 text-white p-1 rounded-full shadow-md"><X size={12} /></button>
+                   </div>
+                 ))}
                </div>
              )}
           </div>
 
           <div>
             <label className="block font-bold mb-1.5">專屬背景音樂 (網址或歌名皆可)</label>
-            <input type="text" placeholder="例：Perfect Night，或直接貼音樂網址..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700" />
+            <input type="text" placeholder="例：Perfect Night，或直接貼音樂網址..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700 border border-transparent focus:border-slate-200" />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
@@ -760,22 +769,35 @@ export default function App() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        {/* 新增消費日期選擇 */}
+        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
+           <span className="text-xs font-bold text-slate-500">消費日期</span>
+           <input type="date" value={financeDraft.date} onChange={(e) => setFinanceDraft({...financeDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
+        </div>
+
         <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100">
           <label className="block text-xs font-bold text-slate-400 mb-2">支出金額 (NT$)</label>
-          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className="w-full outline-none text-2xl font-bold text-slate-700" />
+          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className="w-full outline-none text-3xl font-bold text-slate-700" />
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100 space-y-3 text-xs">
+
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-slate-400 mb-1.5">分類標籤</label>
-            <div className="grid grid-cols-4 gap-2">
-              {['飲食', '交通', '購物', '娛樂'].map(c => (
-                <button key={c} onClick={() => setFinanceDraft({...financeDraft, category: c})} className={`py-1.5 rounded-lg border font-bold ${financeDraft.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{c}</button>
+            <label className="block font-bold text-slate-400 mb-2">分類標籤</label>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.keys(CATEGORY_COLORS).map(c => (
+                <button 
+                  key={c} 
+                  onClick={() => setFinanceDraft({...financeDraft, category: c})} 
+                  className={`py-2 rounded-lg border font-bold transition-colors ${financeDraft.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'}`}
+                >
+                  {c}
+                </button>
               ))}
             </div>
           </div>
           <div className="pt-2">
             <label className="block font-bold text-slate-400 mb-1.5">備註說明</label>
-            <input type="text" placeholder="例如：午餐酪梨吐司..." value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2 bg-slate-50 rounded-lg outline-none text-slate-700" />
+            <input type="text" placeholder="例如：午餐酪梨吐司、Spotify訂閱..." value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2.5 bg-slate-50 rounded-lg outline-none text-slate-700 border border-transparent focus:border-slate-200" />
           </div>
         </div>
       </div>
@@ -787,29 +809,44 @@ export default function App() {
     <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
       <h1 className="text-xl font-bold mb-6 text-slate-800 tracking-wide">我的設定</h1>
       <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 mb-6 flex items-center gap-4">
-         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><User size={32}/></div>
-         <div>
-           <h2 className="text-lg font-bold text-slate-700">小晴</h2>
+         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0"><User size={32}/></div>
+         <div className="flex-1">
+           {/* 可編輯的人名 */}
+           <div className="flex items-center gap-2 mb-1">
+             <input 
+                type="text" 
+                value={userName} 
+                onChange={(e) => setUserName(e.target.value)} 
+                className="text-lg font-bold text-slate-700 bg-transparent outline-none w-24 border-b border-transparent focus:border-amber-400 transition-colors"
+                placeholder="輸入暱稱"
+             />
+             <Edit2 size={12} className="text-slate-400" />
+           </div>
            <p className="text-xs text-slate-400">累積封存了 {memories.length} 顆記憶球</p>
          </div>
       </div>
       <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
         <div className="flex justify-between items-center pb-4 border-b border-slate-50">
           <div className="flex items-center gap-3"><ScanFace size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">Face ID 隱私鎖定</span></div>
-          <div className="w-10 h-6 bg-amber-500 rounded-full flex items-center p-1 justify-end"><div className="w-4 h-4 bg-white rounded-full"></div></div>
+          <div className="w-10 h-6 bg-amber-500 rounded-full flex items-center p-1 justify-end"><div className="w-4 h-4 bg-white rounded-full shadow-sm"></div></div>
         </div>
-        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-50 cursor-pointer hover:opacity-80 transition">
           <div className="flex items-center gap-3"><Archive size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">本機資料匯出備份</span></div>
           <span className="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-500 font-bold">下載備份</span>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center cursor-pointer hover:opacity-80 transition" onClick={() => {
+           if(window.confirm('確定要清除所有本機資料嗎？此動作無法復原。')) {
+              localStorage.clear();
+              window.location.reload();
+           }
+        }}>
           <div className="flex items-center gap-3"><Trash2 size={18} className="text-red-400"/><span className="text-sm font-bold text-red-500">清除本機快取資料</span></div>
         </div>
       </div>
     </div>
   );
 
-  const hideNav = ['add_memory', 'add_finance', 'dump'].includes(currentView);
+  const hideNav = ['add_memory', 'add_finance'].includes(currentView);
 
   return (
     <div className="min-h-screen bg-slate-950 flex justify-center overflow-hidden font-sans text-slate-800">
@@ -821,23 +858,26 @@ export default function App() {
         {currentView === 'profile' && renderProfile()}
         {currentView === 'add_memory' && renderAddMemory()}
         {currentView === 'add_finance' && renderAddFinance()}
-        {currentView === 'dump' && renderScrapbook()}
 
         {showAddMenu && !hideNav && (
-          <div className="absolute inset-0 z-40 bg-slate-900/20 backdrop-blur-xs flex flex-col justify-end pb-32 items-center">
-            <div className="flex gap-6 mb-4 z-50">
+          <div className="absolute inset-0 z-40 bg-slate-900/30 backdrop-blur-sm flex flex-col justify-end pb-32 items-center transition-all animate-[fadeIn_0.2s_ease-out]">
+            <div className="flex gap-8 mb-4 z-50">
               <button onClick={() => { 
                 setShowAddMenu(false); 
                 setEditingMemoryId(null);
                 setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
                 setCurrentView('add_memory'); 
-              }} className="flex flex-col items-center gap-1.5">
-                <div className="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md"><Smile size={20} /></div>
-                <span className="text-[10px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full shadow-xs">封存記憶</span>
+              }} className="flex flex-col items-center gap-2 hover:-translate-y-2 transition-transform">
+                <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shadow-lg"><Smile size={24} /></div>
+                <span className="text-xs font-bold text-white bg-slate-800/60 px-3 py-1 rounded-full backdrop-blur-md">寫日記</span>
               </button>
-              <button onClick={() => { setShowAddMenu(false); setCurrentView('add_finance'); }} className="flex flex-col items-center gap-1.5">
-                <div className="w-12 h-12 rounded-full bg-slate-700 text-white flex items-center justify-center shadow-md"><DollarSign size={20} /></div>
-                <span className="text-[10px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full shadow-xs">記一筆帳</span>
+              <button onClick={() => { 
+                 setShowAddMenu(false); 
+                 setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '' });
+                 setCurrentView('add_finance'); 
+              }} className="flex flex-col items-center gap-2 hover:-translate-y-2 transition-transform">
+                <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-lg"><DollarSign size={24} /></div>
+                <span className="text-xs font-bold text-white bg-slate-800/60 px-3 py-1 rounded-full backdrop-blur-md">記帳</span>
               </button>
             </div>
             <div className="absolute inset-0 bg-transparent" onClick={() => setShowAddMenu(false)}></div>
@@ -845,25 +885,25 @@ export default function App() {
         )}
 
         {!hideNav && (
-          <div className={`absolute bottom-0 left-0 right-0 border-t z-30 px-6 py-4 pb-8 sm:pb-6 flex justify-between items-center
-            ${currentView === 'storage' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white/80 border-white/40 backdrop-blur-md'}
+          <div className={`absolute bottom-0 left-0 right-0 border-t z-30 px-6 py-4 pb-8 sm:pb-6 flex justify-between items-center transition-colors
+            ${currentView === 'storage' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white/90 border-slate-100 backdrop-blur-xl'}
           `}>
-            <button onClick={() => setCurrentView('home')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'home' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
-              <Home size={22} /><span className="text-[9px]">日曆</span>
+            <button onClick={() => setCurrentView('home')} className={`p-1.5 flex flex-col items-center gap-0.5 transition-colors ${currentView === 'home' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
+              <Home size={22} /><span className="text-[10px]">日曆</span>
             </button>
-            <button onClick={() => setCurrentView('stats')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'stats' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
-              <PieChart size={22} /><span className="text-[9px]">統計</span>
+            <button onClick={() => setCurrentView('stats')} className={`p-1.5 flex flex-col items-center gap-0.5 transition-colors ${currentView === 'stats' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
+              <PieChart size={22} /><span className="text-[10px]">統計</span>
             </button>
             <div className="relative -top-6">
-              <button onClick={() => setShowAddMenu(!showAddMenu)} className={`w-14 h-14 rounded-full text-white flex items-center justify-center shadow-md transition-all ${showAddMenu ? 'bg-slate-600 rotate-45' : 'bg-slate-800'}`}>
+              <button onClick={() => setShowAddMenu(!showAddMenu)} className={`w-14 h-14 rounded-full text-white flex items-center justify-center shadow-lg shadow-slate-300/50 transition-all duration-300 ${showAddMenu ? 'bg-slate-600 rotate-45 scale-90 shadow-none' : 'bg-slate-800 hover:scale-105'}`}>
                 <Plus size={28} />
               </button>
             </div>
-            <button onClick={() => setCurrentView('storage')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'storage' ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
-              <Archive size={22} /><span className="text-[9px]">星球</span>
+            <button onClick={() => setCurrentView('storage')} className={`p-1.5 flex flex-col items-center gap-0.5 transition-colors ${currentView === 'storage' ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
+              <Archive size={22} /><span className="text-[10px]">星球</span>
             </button>
-            <button onClick={() => setCurrentView('profile')} className={`p-1.5 flex flex-col items-center gap-0.5 ${currentView === 'profile' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
-              <User size={22} /><span className="text-[9px]">我的</span>
+            <button onClick={() => setCurrentView('profile')} className={`p-1.5 flex flex-col items-center gap-0.5 transition-colors ${currentView === 'profile' ? 'text-slate-800 font-bold' : 'text-slate-400'}`}>
+              <User size={22} /><span className="text-[10px]">我的</span>
             </button>
           </div>
         )}
