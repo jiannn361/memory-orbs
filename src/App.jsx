@@ -23,7 +23,24 @@ const CATEGORY_COLORS = {
   '購物': '#EC4899', // Pink
   '娛樂': '#8B5CF6', // Purple
   '訂閱': '#14B8A6', // Teal
+  '薪資': '#10B981', // Emerald (收入)
+  '獎金': '#FBBF24', // Yellow (收入)
+  '投資': '#6366F1', // Indigo (收入)
   '其他': '#94A3B8'  // Slate
+};
+
+const EXPENSE_CATEGORIES = ['飲食', '交通', '購物', '娛樂', '訂閱', '其他'];
+const INCOME_CATEGORIES = ['薪資', '獎金', '投資', '其他'];
+
+// --- 安全讀取 Local Storage 防崩潰輔助函數 ---
+const safelyParseJSON = (key, fallback) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (e) {
+    console.warn(`讀取 ${key} 失敗，將重置為預設值避免崩潰。`, e);
+    return fallback;
+  }
 };
 
 // --- 組件：立體玻璃記憶球 (Glass Orb) ---
@@ -99,10 +116,10 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentView, setCurrentView] = useState('home'); 
   
-  // 導入 localStorage
-  const [memories, setMemories] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_memories')) || []);
-  const [todos, setTodos] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_todos')) || []);
-  const [finances, setFinances] = useState(() => JSON.parse(localStorage.getItem('memoryorbs_finances')) || []);
+  // 導入 localStorage (全面換上安全防護機制，避免舊資料損壞導致白畫面)
+  const [memories, setMemories] = useState(() => safelyParseJSON('memoryorbs_memories', []));
+  const [todos, setTodos] = useState(() => safelyParseJSON('memoryorbs_todos', []));
+  const [finances, setFinances] = useState(() => safelyParseJSON('memoryorbs_finances', []));
   const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '未命名的小宇宙');
   const [userName, setUserName] = useState(() => localStorage.getItem('memoryorbs_userName') || '小晴');
 
@@ -130,7 +147,7 @@ export default function App() {
   });
 
   const [financeDraft, setFinanceDraft] = useState({
-    date: todayStr, amount: '', category: '飲食', note: ''
+    date: todayStr, amount: '', category: '飲食', note: '', type: 'expense'
   });
 
   const [statsTab, setStatsTab] = useState('mood');
@@ -202,9 +219,10 @@ export default function App() {
 
   const handleSaveFinance = () => {
     if (!financeDraft.amount) return;
-    const newFinance = { id: Date.now(), ...financeDraft, amount: Number(financeDraft.amount) };
+    // 加入 type 屬性 (預設為 expense 支出)，舊資料也能完美相容
+    const newFinance = { id: Date.now(), ...financeDraft, amount: Number(financeDraft.amount), type: financeDraft.type || 'expense' };
     setFinances([newFinance, ...finances]);
-    setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '' });
+    setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '', type: 'expense' });
     setCurrentView('home');
   };
 
@@ -246,7 +264,8 @@ export default function App() {
     const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
 
-    const currentMonthMemories = memories.filter(m => m.date.startsWith(currentMonthPrefix));
+    // 加入安全檢查，避免舊有異常資料缺少 date 屬性導致崩潰
+    const currentMonthMemories = memories.filter(m => m && m.date && m.date.startsWith(currentMonthPrefix));
     const hasActivePeriod = currentMonthMemories.some(m => m.date === todayStr && m.period !== 'none');
 
     return (
@@ -517,19 +536,24 @@ export default function App() {
     const currentMonth = displayDate.getMonth() + 1;
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
     
-    // 篩選當前月份的記帳資料
-    const monthFinances = finances.filter(f => f.date.startsWith(currentMonthPrefix));
-    const totalAmount = monthFinances.reduce((acc, curr) => acc + curr.amount, 0);
+    // 篩選當前月份的記帳資料，加入防呆檢查確保資料結構完整
+    const monthFinances = finances.filter(f => f && f.date && f.date.startsWith(currentMonthPrefix));
+    
+    // 分別計算收入與支出 (強制轉為數字，防止出現 NaN 當機)
+    const totalExpense = monthFinances.filter(f => !f.type || f.type === 'expense').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const totalIncome = monthFinances.filter(f => f.type === 'income').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const balance = totalIncome - totalExpense;
 
-    // 計算各分類支出與圓餅圖所需資料
-    const financeData = monthFinances.reduce((acc, f) => {
-        acc[f.category] = (acc[f.category] || 0) + f.amount;
+    // 計算各「支出」分類佔比
+    const financeData = monthFinances.filter(f => !f.type || f.type === 'expense').reduce((acc, f) => {
+        acc[f.category] = (acc[f.category] || 0) + (Number(f.amount) || 0);
         return acc;
     }, {});
 
     let cumulativePercent = 0;
     const gradientStops = Object.entries(financeData).map(([cat, amount]) => {
-        const percent = (amount / totalAmount) * 100;
+        // 加入 > 0 的判斷，避免除以零產生數學錯誤(NaN)導致畫面崩潰
+        const percent = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
         const start = cumulativePercent;
         cumulativePercent += percent;
         return `${CATEGORY_COLORS[cat] || '#94A3B8'} ${start}% ${cumulativePercent}%`;
@@ -769,22 +793,29 @@ export default function App() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        
+        {/* 新增收入/支出切換 */}
+        <div className="flex bg-slate-200/60 p-1 rounded-xl">
+          <button onClick={() => setFinanceDraft({...financeDraft, type: 'expense', category: '飲食'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'expense' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>支出</button>
+          <button onClick={() => setFinanceDraft({...financeDraft, type: 'income', category: '薪資'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'income' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>收入</button>
+        </div>
+
         {/* 新增消費日期選擇 */}
         <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
-           <span className="text-xs font-bold text-slate-500">消費日期</span>
+           <span className="text-xs font-bold text-slate-500">日期</span>
            <input type="date" value={financeDraft.date} onChange={(e) => setFinanceDraft({...financeDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100">
-          <label className="block text-xs font-bold text-slate-400 mb-2">支出金額 (NT$)</label>
-          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className="w-full outline-none text-3xl font-bold text-slate-700" />
+          <label className="block text-xs font-bold text-slate-400 mb-2">金額 (NT$)</label>
+          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className={`w-full outline-none text-3xl font-bold ${financeDraft.type === 'income' ? 'text-emerald-500' : 'text-slate-700'}`} />
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs">
           <div>
             <label className="block font-bold text-slate-400 mb-2">分類標籤</label>
             <div className="grid grid-cols-3 gap-2">
-              {Object.keys(CATEGORY_COLORS).map(c => (
+              {(financeDraft.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => (
                 <button 
                   key={c} 
                   onClick={() => setFinanceDraft({...financeDraft, category: c})} 
@@ -797,7 +828,7 @@ export default function App() {
           </div>
           <div className="pt-2">
             <label className="block font-bold text-slate-400 mb-1.5">備註說明</label>
-            <input type="text" placeholder="例如：午餐酪梨吐司、Spotify訂閱..." value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2.5 bg-slate-50 rounded-lg outline-none text-slate-700 border border-transparent focus:border-slate-200" />
+            <input type="text" placeholder={financeDraft.type === 'income' ? "例如：發薪水、中發票..." : "例如：午餐酪梨吐司、Spotify訂閱..."} value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2.5 bg-slate-50 rounded-lg outline-none text-slate-700 border border-transparent focus:border-slate-200" />
           </div>
         </div>
       </div>
@@ -873,7 +904,7 @@ export default function App() {
               </button>
               <button onClick={() => { 
                  setShowAddMenu(false); 
-                 setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '' });
+                 setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '', type: 'expense' });
                  setCurrentView('add_finance'); 
               }} className="flex flex-col items-center gap-2 hover:-translate-y-2 transition-transform">
                 <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-lg"><DollarSign size={24} /></div>
