@@ -514,7 +514,7 @@ export default function App() {
                       <span className="text-sm font-bold text-slate-700">寫日記</span>
                    </button>
                    <button onClick={() => {
-                      setFinanceDraft({ date: actionMenuDate, amount: '', category: '飲食', note: '' });
+                      setFinanceDraft({ date: actionMenuDate, amount: '', category: '飲食', note: '', type: 'expense' });
                       setCurrentView('add_finance');
                       setActionMenuDate(null);
                    }} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center gap-2 hover:bg-blue-50 transition-colors">
@@ -594,50 +594,72 @@ export default function App() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* 圓餅圖與總計區塊 */}
-            <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
-              <div className="flex flex-col items-center">
-                 <h3 className="text-sm font-bold text-slate-500 mb-1">當月總支出</h3>
-                 <p className="text-3xl font-black text-slate-800 mb-6">NT$ {totalAmount}</p>
-                 
-                 <div className="relative w-40 h-40 rounded-full flex items-center justify-center shadow-inner" style={{ background: pieGradient }}>
-                    {/* 甜甜圈中心留白 */}
-                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-md">
-                       <PieChart className="text-slate-300 opacity-50" size={32} />
-                    </div>
-                 </div>
-
-                 {/* 分類標籤圖例 */}
-                 <div className="flex flex-wrap justify-center gap-3 mt-6">
-                    {Object.entries(financeData).map(([cat, amount]) => (
-                      <div key={cat} className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                         <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: CATEGORY_COLORS[cat] }}></span>
-                         {cat} <span className="text-slate-400">({Math.round((amount/totalAmount)*100)}%)</span>
-                      </div>
-                    ))}
-                 </div>
+            
+            {/* 總計與結餘區塊 */}
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100">
+                 <h3 className="text-xs font-bold text-slate-400 mb-1">本月總支出</h3>
+                 <p className="text-lg font-black text-slate-700">NT$ {totalExpense}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100">
+                 <h3 className="text-xs font-bold text-slate-400 mb-1">本月總收入</h3>
+                 <p className="text-lg font-black text-emerald-500">NT$ {totalIncome}</p>
               </div>
             </div>
 
+            <div className="bg-slate-800 rounded-2xl p-4 shadow-md flex justify-between items-center text-white">
+               <span className="text-sm font-bold opacity-80">本月結餘</span>
+               <span className="text-xl font-black">{balance > 0 ? '+' : ''}{balance}</span>
+            </div>
+
+            {/* 支出圓餅圖區塊 */}
+            {totalExpense > 0 && (
+              <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
+                <div className="flex flex-col items-center">
+                  <h3 className="text-sm font-bold text-slate-500 mb-4">支出佔比分析</h3>
+                  
+                  <div className="relative w-40 h-40 rounded-full flex items-center justify-center shadow-inner" style={{ background: pieGradient }}>
+                      <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-md">
+                        <PieChart className="text-slate-300 opacity-50" size={32} />
+                      </div>
+                  </div>
+
+                  <div className="flex flex-wrap justify-center gap-3 mt-6">
+                      {Object.entries(financeData).map(([cat, amount]) => (
+                        <div key={cat} className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                          <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: CATEGORY_COLORS[cat] || '#94A3B8' }}></span>
+                          {cat} <span className="text-slate-400">({Math.round((amount/totalExpense)*100)}%)</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 記帳明細列表 */}
             <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
-              <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-50 pb-2">消費明細</h3>
+              <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-50 pb-2">收支明細</h3>
               {monthFinances.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-4">本月尚無記帳紀錄</p>
               ) : (
-                monthFinances.sort((a,b) => new Date(b.date) - new Date(a.date)).map(f => (
-                  <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                    <div>
-                      <div className="flex items-center mb-1">
-                         <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: CATEGORY_COLORS[f.category] }}></span>
-                         <span className="font-bold text-slate-700 text-xs mr-2">{f.category}</span>
-                         <span className="text-[10px] text-slate-400">{f.date}</span>
+                monthFinances.sort((a,b) => new Date(b.date) - new Date(a.date)).map(f => {
+                  const isIncome = f.type === 'income';
+                  return (
+                    <div key={f.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                      <div>
+                        <div className="flex items-center mb-1">
+                          <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: CATEGORY_COLORS[f.category] || '#94A3B8' }}></span>
+                          <span className="font-bold text-slate-700 text-xs mr-2">{f.category}</span>
+                          <span className="text-[10px] text-slate-400">{f.date}</span>
+                        </div>
+                        <span className="text-slate-500 text-xs pl-4">{f.note || '未備註'}</span>
                       </div>
-                      <span className="text-slate-500 text-xs pl-4">{f.note || '未備註'}</span>
+                      <span className={`font-bold ${isIncome ? 'text-emerald-500' : 'text-slate-700'}`}>
+                        {isIncome ? '+' : '-'}${f.amount}
+                      </span>
                     </div>
-                    <span className="font-bold text-slate-700">-${f.amount}</span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
