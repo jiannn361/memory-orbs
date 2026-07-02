@@ -496,6 +496,7 @@ export default function App() {
           </div>
         )}
 
+        // ... existing code ...
         {/* 點擊空白日期彈出快速動作選單 */}
         {actionMenuDate && (
           <div className="absolute inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex flex-col justify-end">
@@ -670,234 +671,100 @@ export default function App() {
 
   // --- 大腦儲藏室 (動態記憶星球) ---
   const renderStorage = () => {
+    // 將所有記憶依據「年-月」進行分組
+    const memoriesByMonth = memories.reduce((acc, m) => {
+      if (!m || !m.date) return acc;
+      const month = m.date.substring(0, 7); // 取出 YYYY-MM
+      if (!acc[month]) acc[month] = [];
+      acc[month].push(m);
+      return acc;
+    }, {});
+
+    // 將月份由新到舊排序
+    const sortedMonths = Object.keys(memoriesByMonth).sort((a, b) => b.localeCompare(a));
+
     return (
-      <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12">
-         <h1 className="text-xl font-bold mb-1 flex items-center gap-2"><Archive className="text-amber-400" /> 大腦儲藏空間</h1>
-         <p className="text-xs text-slate-400 mb-8">歷史封存的星雲集合 (包含所有月份紀錄)</p>
-
-         <div className="space-y-6">
-           <div className="bg-slate-800/60 rounded-3xl p-6 border border-slate-700/50 flex flex-col items-center">
-              
-              <div className="w-40 h-40 rounded-full bg-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] mb-6 relative overflow-hidden flex items-center justify-center">
-                 <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
-                   {memories.length === 0 ? (
-                      <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600 font-bold z-20">尚未形成星雲</div>
-                   ) : (
-                      memories.map((m, idx) => {
-                         const x = (idx * 137) % 120 - 10; 
-                         const y = (idx * 251) % 120 - 10;
-                         const size = 50 + ((idx * 73) % 60); 
-                         
-                         return (
-                           <div
-                              key={m.id}
-                              className="absolute rounded-full blur-[10px] opacity-80"
-                              style={{
-                                 backgroundColor: MOODS[m.mood].dark,
-                                 width: `${size}%`,
-                                 height: `${size}%`,
-                                 top: `${y}%`,
-                                 left: `${x}%`,
-                              }}
-                           />
-                         )
-                      })
-                   )}
-                 </div>
-                 <div className="absolute inset-0 rounded-full shadow-[inset_-15px_-15px_30px_rgba(0,0,0,0.8),inset_5px_5px_15px_rgba(255,255,255,0.4)] pointer-events-none z-10"></div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                 <input type="text" value={planetName} onChange={(e) => setPlanetName(e.target.value)} className="bg-transparent text-sm font-bold text-white text-center outline-none border-b border-slate-700 focus:border-amber-400 w-36" />
-                 <Edit2 size={12} className="text-slate-500" />
-              </div>
+      <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12 pb-24">
+         <div className="flex justify-between items-start mb-6">
+           <div>
+             <h1 className="text-2xl font-bold mb-1 flex items-center gap-2"><Sparkles className="text-amber-400" size={24} /> 記憶星系庫</h1>
+             <p className="text-xs text-slate-400">每月的心情軌跡，將凝結成獨特的專屬星球</p>
            </div>
          </div>
+
+         {/* 宇宙命名區塊 (保留原本的命名功能，升級為宇宙名稱) */}
+         <div className="bg-slate-800/40 rounded-2xl p-4 mb-8 flex items-center justify-between border border-slate-700/50 shadow-sm">
+           <span className="text-xs text-slate-400 font-bold">我的專屬宇宙命名</span>
+           <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                value={planetName} 
+                onChange={(e) => setPlanetName(e.target.value)} 
+                className="bg-transparent text-sm font-bold text-amber-100 text-right outline-none border-b border-transparent focus:border-amber-400 w-32 transition-colors" 
+                placeholder="未命名宇宙"
+              />
+              <Edit2 size={12} className="text-slate-500" />
+           </div>
+         </div>
+
+         {sortedMonths.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+              <Archive size={48} className="mb-4 opacity-20" />
+              <p className="text-sm font-bold">目前宇宙還是空蕩蕩的...</p>
+              <p className="text-xs mt-2">去寫下第一篇日記創造星球吧！</p>
+            </div>
+         ) : (
+            <div className="grid grid-cols-2 gap-4">
+               {sortedMonths.map(month => {
+                  const monthMems = memoriesByMonth[month];
+                  const [year, m] = month.split('-');
+                  
+                  return (
+                     <div key={month} className="bg-gradient-to-b from-slate-800/80 to-slate-800/30 rounded-3xl p-5 border border-slate-700/50 flex flex-col items-center shadow-lg hover:scale-105 transition-transform">
+                        <div className="w-24 h-24 rounded-full bg-slate-900 shadow-[0_0_20px_rgba(0,0,0,0.8)] mb-4 relative flex items-center justify-center">
+                           
+                           {/* 星球本體 (設為 overflow-hidden 確保顏色不出界) */}
+                           <div className="absolute inset-0 rounded-full overflow-hidden">
+                             <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
+                                {monthMems.map((mem, idx) => {
+                                   const x = (idx * 137) % 120 - 10; 
+                                   const y = (idx * 251) % 120 - 10;
+                                   const size = 50 + ((idx * 73) % 60); 
+                                   return (
+                                     <div
+                                        key={mem.id}
+                                        className="absolute rounded-full blur-[8px] opacity-80"
+                                        style={{
+                                           backgroundColor: MOODS[mem.mood]?.dark || '#94A3B8',
+                                           width: `${size}%`,
+                                           height: `${size}%`,
+                                           top: `${y}%`,
+                                           left: `${x}%`,
+                                        }}
+                                     />
+                                   )
+                                })}
+                             </div>
+                             {/* 球體立體光影 */}
+                             <div className="absolute inset-0 shadow-[inset_-10px_-10px_20px_rgba(0,0,0,0.9),inset_4px_4px_10px_rgba(255,255,255,0.3)] pointer-events-none z-10"></div>
+                           </div>
+                           
+                           {/* 星環裝飾 (超過 5 篇記憶解鎖星環) */}
+                           {monthMems.length >= 5 && (
+                              <div className="absolute w-[150%] h-[35%] border-[3px] border-white/10 rounded-[100%] rotate-12 z-20 shadow-[0_0_15px_rgba(255,255,255,0.15)] pointer-events-none"></div>
+                           )}
+                        </div>
+                        
+                        <h3 className="text-sm font-black text-slate-100 tracking-wider">{year}.{m}</h3>
+                        <p className="text-[10px] text-slate-400 mt-1 font-bold">匯聚 {monthMems.length} 顆記憶</p>
+                     </div>
+                  )
+               })}
+            </div>
+         )}
       </div>
     );
   };
-
-  // --- 新增/編輯 日記 功能表單頁面 ---
-  const renderAddMemory = () => (
-    <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
-      <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
-        <button onClick={() => {
-          setCurrentView('home');
-          setEditingMemoryId(null);
-          setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
-        }} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
-        <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活日誌' : '生活日誌封存'}</h2>
-        <button onClick={handleSaveMemory} className="p-2 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition"><Check size={18} /></button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
-           <span className="text-xs font-bold text-slate-500">日期時間</span>
-           <input type="date" value={memoryDraft.date} onChange={(e) => setMemoryDraft({...memoryDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 flex flex-col items-center">
-          <p className="text-xs font-bold text-slate-400 mb-4">今天的心情莫蘭迪玻璃球</p>
-          <div className="flex justify-center gap-3">
-            {Object.keys(MOODS).map(k => (
-              <SvgOrb key={k} moodId={k} size="md" isSelected={memoryDraft.mood === k} onClick={() => setMemoryDraft({...memoryDraft, mood: k})} />
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs text-slate-500">
-          <div>
-             <div className="flex items-center justify-between mb-2">
-               <label className="font-bold flex items-center gap-2">照片紀錄 <span className="text-[10px] font-normal text-slate-400">(最多 3 張)</span></label>
-               {memoryDraft.images.length < 3 && (
-                 <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors">
-                   <Camera size={14} /> 新增照片
-                 </label>
-               )}
-               <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
-             </div>
-             {memoryDraft.images.length > 0 && (
-               <div className="flex gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar">
-                 {memoryDraft.images.map((img, idx) => (
-                   <div key={idx} className="relative inline-block flex-shrink-0">
-                     <img src={img} alt="預覽" className="h-24 w-24 object-cover rounded-xl border border-slate-200 shadow-sm" />
-                     <button onClick={() => removeDraftImage(idx)} className="absolute -top-2 -right-2 bg-slate-800 text-white p-1 rounded-full shadow-md"><X size={12} /></button>
-                   </div>
-                 ))}
-               </div>
-             )}
-          </div>
-
-          <div>
-            <label className="block font-bold mb-1.5">專屬背景音樂 (網址或歌名皆可)</label>
-            <input type="text" placeholder="例：Perfect Night，或直接貼音樂網址..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700 border border-transparent focus:border-slate-200" />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold mb-1.5">生理期流量</label>
-              <select value={memoryDraft.period} onChange={e => setMemoryDraft({...memoryDraft, period: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700">
-                <option value="none">沒來</option>
-                <option value="light">量少</option>
-                <option value="normal">正常</option>
-                <option value="heavy">量多</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-bold mb-1.5">天氣狀況</label>
-              <div className="flex justify-between bg-slate-50 p-1 rounded-xl">
-                {['sun', 'cloud', 'rain', 'snow'].map(w => (
-                  <button key={w} onClick={() => setMemoryDraft({...memoryDraft, weather: w})} className={`p-1.5 rounded-lg transition-colors ${memoryDraft.weather === w ? 'bg-white shadow-sm text-amber-500' : 'text-slate-400'}`}>
-                    {w === 'sun' && <Sun size={16} />}
-                    {w === 'cloud' && <Cloud size={16} />}
-                    {w === 'rain' && <CloudRain size={16} />}
-                    {w === 'snow' && <Snowflake size={16} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-100 p-4">
-          <textarea placeholder="寫下當下的心情與對話細節..." className="w-full h-24 text-sm outline-none resize-none text-slate-700 placeholder:text-slate-300 leading-relaxed" value={memoryDraft.text} onChange={(e) => setMemoryDraft({...memoryDraft, text: e.target.value})} />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAddFinance = () => (
-    <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
-      <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
-        <button onClick={() => setCurrentView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
-        <h2 className="text-sm font-bold text-slate-700">記一筆帳目</h2>
-        <button onClick={handleSaveFinance} className="p-2 bg-slate-800 rounded-full text-white"><Check size={18} /></button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-        
-        {/* 新增收入/支出切換 */}
-        <div className="flex bg-slate-200/60 p-1 rounded-xl">
-          <button onClick={() => setFinanceDraft({...financeDraft, type: 'expense', category: '飲食'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'expense' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>支出</button>
-          <button onClick={() => setFinanceDraft({...financeDraft, type: 'income', category: '薪資'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'income' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>收入</button>
-        </div>
-
-        {/* 新增消費日期選擇 */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
-           <span className="text-xs font-bold text-slate-500">日期</span>
-           <input type="date" value={financeDraft.date} onChange={(e) => setFinanceDraft({...financeDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100">
-          <label className="block text-xs font-bold text-slate-400 mb-2">金額 (NT$)</label>
-          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className={`w-full outline-none text-3xl font-bold ${financeDraft.type === 'income' ? 'text-emerald-500' : 'text-slate-700'}`} />
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-slate-400 mb-2">分類標籤</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(financeDraft.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => (
-                <button 
-                  key={c} 
-                  onClick={() => setFinanceDraft({...financeDraft, category: c})} 
-                  className={`py-2 rounded-lg border font-bold transition-colors ${financeDraft.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'}`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="pt-2">
-            <label className="block font-bold text-slate-400 mb-1.5">備註說明</label>
-            <input type="text" placeholder={financeDraft.type === 'income' ? "例如：發薪水、中發票..." : "例如：午餐酪梨吐司、Spotify訂閱..."} value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2.5 bg-slate-50 rounded-lg outline-none text-slate-700 border border-transparent focus:border-slate-200" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // --- 我的帳號設定頁面 (人頭圖示) ---
-  const renderProfile = () => (
-    <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
-      <h1 className="text-xl font-bold mb-6 text-slate-800 tracking-wide">我的設定</h1>
-      <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 mb-6 flex items-center gap-4">
-         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0"><User size={32}/></div>
-         <div className="flex-1">
-           {/* 可編輯的人名 */}
-           <div className="flex items-center gap-2 mb-1">
-             <input 
-                type="text" 
-                value={userName} 
-                onChange={(e) => setUserName(e.target.value)} 
-                className="text-lg font-bold text-slate-700 bg-transparent outline-none w-24 border-b border-transparent focus:border-amber-400 transition-colors"
-                placeholder="輸入暱稱"
-             />
-             <Edit2 size={12} className="text-slate-400" />
-           </div>
-           <p className="text-xs text-slate-400">累積封存了 {memories.length} 顆記憶球</p>
-         </div>
-      </div>
-      <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
-        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-          <div className="flex items-center gap-3"><ScanFace size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">Face ID 隱私鎖定</span></div>
-          <div className="w-10 h-6 bg-amber-500 rounded-full flex items-center p-1 justify-end"><div className="w-4 h-4 bg-white rounded-full shadow-sm"></div></div>
-        </div>
-        <div className="flex justify-between items-center pb-4 border-b border-slate-50 cursor-pointer hover:opacity-80 transition">
-          <div className="flex items-center gap-3"><Archive size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">本機資料匯出備份</span></div>
-          <span className="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-500 font-bold">下載備份</span>
-        </div>
-        <div className="flex justify-between items-center cursor-pointer hover:opacity-80 transition" onClick={() => {
-           if(window.confirm('確定要清除所有本機資料嗎？此動作無法復原。')) {
-              localStorage.clear();
-              window.location.reload();
-           }
-        }}>
-          <div className="flex items-center gap-3"><Trash2 size={18} className="text-red-400"/><span className="text-sm font-bold text-red-500">清除本機快取資料</span></div>
-        </div>
-      </div>
-    </div>
-  );
 
   const hideNav = ['add_memory', 'add_finance'].includes(currentView);
 
