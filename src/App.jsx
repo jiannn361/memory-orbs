@@ -11,22 +11,22 @@ import {
 
 // --- 設定常數：莫蘭迪色系 (Morandi Colors) ---
 const MOODS = {
-  joy: { id: 'joy', name: '開心', light: '#E2D9C8', dark: '#B5A48C', face: 'joy' },       // 莫蘭迪灰黃
-  sadness: { id: 'sadness', name: '悲傷', light: '#D0D7DE', dark: '#7A8B99', face: 'sadness' }, // 莫蘭迪藍灰
-  anger: { id: 'anger', name: '憤怒', light: '#E8D3D1', dark: '#A37A74', face: 'anger' },     // 莫蘭迪磚紅
-  disgust: { id: 'disgust', name: '厭惡', light: '#D3DDD4', dark: '#839987', face: 'disgust' }, // 莫蘭迪綠灰
+  joy: { id: 'joy', name: '開心', light: '#E2D9C8', dark: '#B5A48C', face: 'joy' },       
+  sadness: { id: 'sadness', name: '悲傷', light: '#D0D7DE', dark: '#7A8B99', face: 'sadness' }, 
+  anger: { id: 'anger', name: '憤怒', light: '#E8D3D1', dark: '#A37A74', face: 'anger' },     
+  disgust: { id: 'disgust', name: '厭惡', light: '#D3DDD4', dark: '#839987', face: 'disgust' }, 
 };
 
 const CATEGORY_COLORS = {
-  '飲食': '#F59E0B', // Amber
-  '交通': '#3B82F6', // Blue
-  '購物': '#EC4899', // Pink
-  '娛樂': '#8B5CF6', // Purple
-  '訂閱': '#14B8A6', // Teal
-  '薪資': '#10B981', // Emerald (收入)
-  '獎金': '#FBBF24', // Yellow (收入)
-  '投資': '#6366F1', // Indigo (收入)
-  '其他': '#94A3B8'  // Slate
+  '飲食': '#F59E0B', 
+  '交通': '#3B82F6', 
+  '購物': '#EC4899', 
+  '娛樂': '#8B5CF6', 
+  '訂閱': '#14B8A6', 
+  '薪資': '#10B981', 
+  '獎金': '#FBBF24', 
+  '投資': '#6366F1', 
+  '其他': '#94A3B8'  
 };
 
 const EXPENSE_CATEGORIES = ['飲食', '交通', '購物', '娛樂', '訂閱', '其他'];
@@ -38,7 +38,7 @@ const safelyParseJSON = (key, fallback) => {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : fallback;
   } catch (e) {
-    console.warn(`讀取 ${key} 失敗，將重置為預設值避免崩潰。`, e);
+    console.warn(`讀取 ${key} 失敗，將重置為預設值。`, e);
     return fallback;
   }
 };
@@ -72,13 +72,10 @@ const SvgOrb = ({ moodId, size = 'md', isSelected = false, onClick, customClass 
              <stop offset="100%" stopColor="white" stopOpacity="0" />
           </linearGradient>
         </defs>
-
         <circle cx="50" cy="50" r="46" fill={`url(#glass-${moodId}-${uniqueId})`} />
         <circle cx="50" cy="50" r="46" fill="none" stroke="white" strokeWidth="1.5" strokeOpacity="0.3" />
-        
         <ellipse cx="50" cy="22" rx="35" ry="14" fill={`url(#highlight-${uniqueId})`} transform="rotate(-10 50 22)" />
         <path d="M 28 82 A 35 15 0 0 0 72 82" fill="none" stroke="white" strokeWidth="2.5" strokeOpacity="0.25" strokeLinecap="round" />
-        
         <g fill="#4A4A4A" stroke="#4A4A4A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75">
           {mood.face === 'joy' && (
             <><path d="M35,45 Q40,40 45,45" fill="none" /><path d="M55,45 Q60,40 65,45" fill="none" /><path d="M40,56 Q50,66 60,56" fill="none" /></>
@@ -116,22 +113,20 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentView, setCurrentView] = useState('home'); 
   
-  // 導入 localStorage (全面換上安全防護機制，避免舊資料損壞導致白畫面)
   const [memories, setMemories] = useState(() => safelyParseJSON('memoryorbs_memories', []));
   const [todos, setTodos] = useState(() => safelyParseJSON('memoryorbs_todos', []));
   const [finances, setFinances] = useState(() => safelyParseJSON('memoryorbs_finances', []));
-  const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '未命名的小宇宙');
+  const [planetName, setPlanetName] = useState(() => localStorage.getItem('memoryorbs_planetName') || '我的大腦星系');
   const [userName, setUserName] = useState(() => localStorage.getItem('memoryorbs_userName') || '小晴');
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [selectedDateModal, setSelectedDateModal] = useState(null); 
-  const [actionMenuDate, setActionMenuDate] = useState(null); // 用於點擊空白日期時彈出
+  const [actionMenuDate, setActionMenuDate] = useState(null); 
   
   const [addingTodo, setAddingTodo] = useState(false);
   const [newTodoDraft, setNewTodoDraft] = useState({ text: '', date: new Date().toISOString().split('T')[0] });
   const [editingMemoryId, setEditingMemoryId] = useState(null);
 
-  // 日期狀態 (控制日曆與圖表顯示的年月)
   const todayStr = new Date().toISOString().split('T')[0];
   const [displayDate, setDisplayDate] = useState(new Date());
 
@@ -152,11 +147,10 @@ export default function App() {
 
   const [statsTab, setStatsTab] = useState('mood');
 
-  // 多圖上傳邏輯 (上限 3 張)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (memoryDraft.images.length >= 3) return; // 限制 3 張
+      if (memoryDraft.images.length >= 3) return; 
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
@@ -219,7 +213,6 @@ export default function App() {
 
   const handleSaveFinance = () => {
     if (!financeDraft.amount) return;
-    // 加入 type 屬性 (預設為 expense 支出)，舊資料也能完美相容
     const newFinance = { id: Date.now(), ...financeDraft, amount: Number(financeDraft.amount), type: financeDraft.type || 'expense' };
     setFinances([newFinance, ...finances]);
     setFinanceDraft({ date: todayStr, amount: '', category: '飲食', note: '', type: 'expense' });
@@ -264,7 +257,6 @@ export default function App() {
     const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
 
-    // 加入安全檢查，避免舊有異常資料缺少 date 屬性導致崩潰
     const currentMonthMemories = memories.filter(m => m && m.date && m.date.startsWith(currentMonthPrefix));
     const hasActivePeriod = currentMonthMemories.some(m => m.date === todayStr && m.period !== 'none');
 
@@ -284,7 +276,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 月份切換控制器 */}
           <div className="flex items-center justify-between bg-white/40 backdrop-blur-md rounded-2xl p-2 mb-6 border border-white/60 shadow-sm">
              <button onClick={() => changeMonth(-1)} className="p-2 text-slate-600 hover:bg-white/60 rounded-xl transition"><ChevronLeft size={20}/></button>
              <div className="relative font-bold text-slate-700 tracking-wider">
@@ -293,10 +284,7 @@ export default function App() {
                  type="date" 
                  value={`${currentMonthPrefix}-01`}
                  onChange={(e) => {
-                   if(e.target.value) {
-                     // 轉換格式確保跨瀏覽器相容，並準確跳轉到選定的年月日
-                     setDisplayDate(new Date(e.target.value.replace(/-/g, '/')));
-                   }
+                   if(e.target.value) setDisplayDate(new Date(e.target.value.replace(/-/g, '/')));
                  }} 
                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                />
@@ -304,7 +292,6 @@ export default function App() {
              <button onClick={() => changeMonth(1)} className="p-2 text-slate-600 hover:bg-white/60 rounded-xl transition"><ChevronRight size={20}/></button>
           </div>
 
-          {/* 玻璃記憶罐 */}
           <div className="relative w-28 h-36 mx-auto mb-8">
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-20 h-5 bg-amber-800/40 rounded-full border-b-2 border-amber-900/20 z-20 backdrop-blur-sm"></div>
             <div className="absolute inset-0 bg-white/20 backdrop-blur-md border-2 border-white/50 rounded-b-[2rem] rounded-t-xl shadow-[inset_0_0_15px_rgba(255,255,255,0.6)] z-10 flex flex-wrap-reverse content-start justify-center gap-1 p-3 pt-5 overflow-hidden">
@@ -315,7 +302,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 相片日曆網格 */}
           <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-5 shadow-sm border border-white/60 mb-6 relative">
             <div className="grid grid-cols-7 gap-2 mb-3 text-center text-xs font-bold text-slate-400">
               {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
@@ -364,7 +350,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 待辦事項區塊 */}
           <div className="bg-white/60 backdrop-blur-md rounded-3xl p-5 shadow-xs border border-white/50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -413,7 +398,6 @@ export default function App() {
 
         </div>
 
-        {/* 檢視特定日期細節卡片 */}
         {selectedDateModal && (
           <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative p-6 pt-10 border border-slate-100">
@@ -496,8 +480,6 @@ export default function App() {
           </div>
         )}
 
-        // ... existing code ...
-        {/* 點擊空白日期彈出快速動作選單 */}
         {actionMenuDate && (
           <div className="absolute inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex flex-col justify-end">
              <div className="bg-white rounded-t-[2.5rem] p-6 pb-10 shadow-2xl animate-[slideUp_0.3s_ease-out]">
@@ -531,21 +513,17 @@ export default function App() {
     );
   };
 
-  // --- 統計數據頁面 ---
   const renderStats = () => {
     const currentYear = displayDate.getFullYear();
     const currentMonth = displayDate.getMonth() + 1;
     const currentMonthPrefix = `${currentYear}-${currentMonth.toString().padStart(2, '0')}`;
     
-    // 篩選當前月份的記帳資料，加入防呆檢查確保資料結構完整
     const monthFinances = finances.filter(f => f && f.date && f.date.startsWith(currentMonthPrefix));
     
-    // 分別計算收入與支出 (強制轉為數字，防止出現 NaN 當機)
     const totalExpense = monthFinances.filter(f => !f.type || f.type === 'expense').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const totalIncome = monthFinances.filter(f => f.type === 'income').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const balance = totalIncome - totalExpense;
 
-    // 計算各「支出」分類佔比
     const financeData = monthFinances.filter(f => !f.type || f.type === 'expense').reduce((acc, f) => {
         acc[f.category] = (acc[f.category] || 0) + (Number(f.amount) || 0);
         return acc;
@@ -553,7 +531,6 @@ export default function App() {
 
     let cumulativePercent = 0;
     const gradientStops = Object.entries(financeData).map(([cat, amount]) => {
-        // 加入 > 0 的判斷，避免除以零產生數學錯誤(NaN)導致畫面崩潰
         const percent = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
         const start = cumulativePercent;
         cumulativePercent += percent;
@@ -595,8 +572,6 @@ export default function App() {
           </div>
         ) : (
           <div className="space-y-4">
-            
-            {/* 總計與結餘區塊 */}
             <div className="grid grid-cols-2 gap-3 mb-2">
               <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100">
                  <h3 className="text-xs font-bold text-slate-400 mb-1">本月總支出</h3>
@@ -613,7 +588,6 @@ export default function App() {
                <span className="text-xl font-black">{balance > 0 ? '+' : ''}{balance}</span>
             </div>
 
-            {/* 支出圓餅圖區塊 */}
             {totalExpense > 0 && (
               <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100">
                 <div className="flex flex-col items-center">
@@ -637,7 +611,6 @@ export default function App() {
               </div>
             )}
 
-            {/* 記帳明細列表 */}
             <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
               <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-50 pb-2">收支明細</h3>
               {monthFinances.length === 0 ? (
@@ -669,102 +642,259 @@ export default function App() {
     );
   };
 
-  // --- 大腦儲藏室 (動態記憶星球) ---
+  // --- 大腦星系庫 (動態記憶星球，依月份區分) ---
   const renderStorage = () => {
-    // 將所有記憶依據「年-月」進行分組
-    const memoriesByMonth = memories.reduce((acc, m) => {
-      if (!m || !m.date) return acc;
-      const month = m.date.substring(0, 7); // 取出 YYYY-MM
-      if (!acc[month]) acc[month] = [];
-      acc[month].push(m);
-      return acc;
-    }, {});
+    // 將所有記憶依照「YYYY-MM」月份分組
+    const monthsGroup = {};
+    memories.forEach(m => {
+       if (!m || !m.date) return;
+       const monthStr = m.date.substring(0, 7); 
+       if (!monthsGroup[monthStr]) monthsGroup[monthStr] = [];
+       monthsGroup[monthStr].push(m);
+    });
 
     // 將月份由新到舊排序
-    const sortedMonths = Object.keys(memoriesByMonth).sort((a, b) => b.localeCompare(a));
+    const sortedMonths = Object.keys(monthsGroup).sort((a, b) => b.localeCompare(a));
 
     return (
-      <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12 pb-24">
-         <div className="flex justify-between items-start mb-6">
+      <div className="flex-1 flex flex-col bg-slate-900 h-full overflow-y-auto text-white p-6 pt-12">
+         <div className="flex items-center justify-between mb-8">
            <div>
-             <h1 className="text-2xl font-bold mb-1 flex items-center gap-2"><Sparkles className="text-amber-400" size={24} /> 記憶星系庫</h1>
-             <p className="text-xs text-slate-400">每月的心情軌跡，將凝結成獨特的專屬星球</p>
+             <h1 className="text-xl font-bold mb-1 flex items-center gap-2"><Archive className="text-amber-400" /> 大腦星系庫</h1>
+             <p className="text-xs text-slate-400">專屬於每個月的心情星球</p>
+           </div>
+           <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700">
+              <input type="text" value={planetName} onChange={(e) => setPlanetName(e.target.value)} className="bg-transparent text-xs font-bold text-white text-center outline-none w-24" />
+              <Edit2 size={10} className="text-slate-400" />
            </div>
          </div>
 
-         {/* 宇宙命名區塊 (保留原本的命名功能，升級為宇宙名稱) */}
-         <div className="bg-slate-800/40 rounded-2xl p-4 mb-8 flex items-center justify-between border border-slate-700/50 shadow-sm">
-           <span className="text-xs text-slate-400 font-bold">我的專屬宇宙命名</span>
-           <div className="flex items-center gap-2">
-              <input 
-                type="text" 
-                value={planetName} 
-                onChange={(e) => setPlanetName(e.target.value)} 
-                className="bg-transparent text-sm font-bold text-amber-100 text-right outline-none border-b border-transparent focus:border-amber-400 w-32 transition-colors" 
-                placeholder="未命名宇宙"
-              />
-              <Edit2 size={12} className="text-slate-500" />
-           </div>
-         </div>
+         <div className="space-y-8 pb-24">
+           {sortedMonths.length === 0 ? (
+              <div className="text-center text-slate-500 text-sm mt-10">尚未形成任何星雲</div>
+           ) : (
+              sortedMonths.map(month => {
+                 const monthMems = monthsGroup[month];
+                 const isRich = monthMems.length >= 5; // 如果當月超過 5 篇，星球會長出星環
 
-         {sortedMonths.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <Archive size={48} className="mb-4 opacity-20" />
-              <p className="text-sm font-bold">目前宇宙還是空蕩蕩的...</p>
-              <p className="text-xs mt-2">去寫下第一篇日記創造星球吧！</p>
-            </div>
-         ) : (
-            <div className="grid grid-cols-2 gap-4">
-               {sortedMonths.map(month => {
-                  const monthMems = memoriesByMonth[month];
-                  const [year, m] = month.split('-');
-                  
-                  return (
-                     <div key={month} className="bg-gradient-to-b from-slate-800/80 to-slate-800/30 rounded-3xl p-5 border border-slate-700/50 flex flex-col items-center shadow-lg hover:scale-105 transition-transform">
-                        <div className="w-24 h-24 rounded-full bg-slate-900 shadow-[0_0_20px_rgba(0,0,0,0.8)] mb-4 relative flex items-center justify-center">
-                           
-                           {/* 星球本體 (設為 overflow-hidden 確保顏色不出界) */}
-                           <div className="absolute inset-0 rounded-full overflow-hidden">
-                             <div className="absolute inset-0 animate-[spin_40s_linear_infinite]">
-                                {monthMems.map((mem, idx) => {
-                                   const x = (idx * 137) % 120 - 10; 
-                                   const y = (idx * 251) % 120 - 10;
-                                   const size = 50 + ((idx * 73) % 60); 
-                                   return (
-                                     <div
-                                        key={mem.id}
-                                        className="absolute rounded-full blur-[8px] opacity-80"
-                                        style={{
-                                           backgroundColor: MOODS[mem.mood]?.dark || '#94A3B8',
-                                           width: `${size}%`,
-                                           height: `${size}%`,
-                                           top: `${y}%`,
-                                           left: `${x}%`,
-                                        }}
-                                     />
-                                   )
-                                })}
-                             </div>
-                             {/* 球體立體光影 */}
-                             <div className="absolute inset-0 shadow-[inset_-10px_-10px_20px_rgba(0,0,0,0.9),inset_4px_4px_10px_rgba(255,255,255,0.3)] pointer-events-none z-10"></div>
-                           </div>
-                           
-                           {/* 星環裝飾 (超過 5 篇記憶解鎖星環) */}
-                           {monthMems.length >= 5 && (
-                              <div className="absolute w-[150%] h-[35%] border-[3px] border-white/10 rounded-[100%] rotate-12 z-20 shadow-[0_0_15px_rgba(255,255,255,0.15)] pointer-events-none"></div>
-                           )}
-                        </div>
-                        
-                        <h3 className="text-sm font-black text-slate-100 tracking-wider">{year}.{m}</h3>
-                        <p className="text-[10px] text-slate-400 mt-1 font-bold">匯聚 {monthMems.length} 顆記憶</p>
-                     </div>
-                  )
-               })}
-            </div>
-         )}
+                 return (
+                   <div key={month} className="bg-slate-800/40 rounded-[2rem] p-6 border border-slate-700/50 flex flex-col items-center">
+                      <h3 className="text-slate-300 font-bold mb-6 tracking-widest text-sm bg-slate-800 px-4 py-1 rounded-full shadow-inner">{month.replace('-', ' 年 ')} 月</h3>
+                      
+                      <div className="w-40 h-40 rounded-full bg-slate-800 shadow-[0_0_40px_rgba(0,0,0,0.6)] mb-2 relative flex items-center justify-center">
+                         {/* 豐富記憶專屬星環 */}
+                         {isRich && (
+                            <div className="absolute w-[220%] h-[40%] rounded-[100%] border-4 border-white/10 border-t-white/30 rotate-12 pointer-events-none drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
+                         )}
+                         <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center animate-[spin_40s_linear_infinite]">
+                           {monthMems.map((m, idx) => {
+                              const x = (idx * 137) % 120 - 10; 
+                              const y = (idx * 251) % 120 - 10;
+                              const size = 50 + ((idx * 73) % 60); 
+                              return (
+                                <div
+                                   key={m.id}
+                                   className="absolute rounded-full blur-[12px] opacity-80"
+                                   style={{
+                                      backgroundColor: MOODS[m.mood]?.dark || '#94A3B8',
+                                      width: `${size}%`,
+                                      height: `${size}%`,
+                                      top: `${y}%`,
+                                      left: `${x}%`,
+                                   }}
+                                />
+                              )
+                           })}
+                         </div>
+                         <div className="absolute inset-0 rounded-full shadow-[inset_-15px_-15px_30px_rgba(0,0,0,0.8),inset_5px_5px_15px_rgba(255,255,255,0.4)] pointer-events-none z-10"></div>
+                      </div>
+                      
+                      {isRich && <div className="text-[10px] text-amber-500/70 font-bold mt-4 flex items-center gap-1"><Sparkles size={10}/> 記憶豐沛的閃耀星環</div>}
+                   </div>
+                 );
+              })
+           )}
+         </div>
       </div>
     );
   };
+
+  const renderAddMemory = () => (
+    <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
+      <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
+        <button onClick={() => {
+          setCurrentView('home');
+          setEditingMemoryId(null);
+          setMemoryDraft({ date: todayStr, text: '', mood: null, weather: 'sun', music: '', period: 'none', images: [] });
+        }} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
+        <h2 className="text-sm font-bold text-slate-700">{editingMemoryId ? '編輯生活日誌' : '生活日誌封存'}</h2>
+        <button onClick={handleSaveMemory} className="p-2 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition"><Check size={18} /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
+           <span className="text-xs font-bold text-slate-500">日期時間</span>
+           <input type="date" value={memoryDraft.date} onChange={(e) => setMemoryDraft({...memoryDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 flex flex-col items-center">
+          <p className="text-xs font-bold text-slate-400 mb-4">今天的心情莫蘭迪玻璃球</p>
+          <div className="flex justify-center gap-3">
+            {Object.keys(MOODS).map(k => (
+              <SvgOrb key={k} moodId={k} size="md" isSelected={memoryDraft.mood === k} onClick={() => setMemoryDraft({...memoryDraft, mood: k})} />
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs text-slate-500">
+          <div>
+             <div className="flex items-center justify-between mb-2">
+               <label className="font-bold flex items-center gap-2">照片紀錄 <span className="text-[10px] font-normal text-slate-400">(最多 3 張)</span></label>
+               {memoryDraft.images.length < 3 && (
+                 <label htmlFor="photo-upload" className="bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-colors">
+                   <Camera size={14} /> 新增照片
+                 </label>
+               )}
+               <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
+             </div>
+             {memoryDraft.images.length > 0 && (
+               <div className="flex gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar">
+                 {memoryDraft.images.map((img, idx) => (
+                   <div key={idx} className="relative inline-block flex-shrink-0">
+                     <img src={img} alt="預覽" className="h-24 w-24 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                     <button onClick={() => removeDraftImage(idx)} className="absolute -top-2 -right-2 bg-slate-800 text-white p-1 rounded-full shadow-md"><X size={12} /></button>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+
+          <div>
+            <label className="block font-bold mb-1.5">專屬背景音樂 (網址或歌名皆可)</label>
+            <input type="text" placeholder="例：Perfect Night，或直接貼音樂網址..." value={memoryDraft.music} onChange={e => setMemoryDraft({...memoryDraft, music: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700 border border-transparent focus:border-slate-200" />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold mb-1.5">生理期流量</label>
+              <select value={memoryDraft.period} onChange={e => setMemoryDraft({...memoryDraft, period: e.target.value})} className="w-full p-2 bg-slate-50 rounded-xl outline-none text-slate-700">
+                <option value="none">沒來</option>
+                <option value="light">量少</option>
+                <option value="normal">正常</option>
+                <option value="heavy">量多</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-bold mb-1.5">天氣狀況</label>
+              <div className="flex justify-between bg-slate-50 p-1 rounded-xl">
+                {['sun', 'cloud', 'rain', 'snow'].map(w => (
+                  <button key={w} onClick={() => setMemoryDraft({...memoryDraft, weather: w})} className={`p-1.5 rounded-lg transition-colors ${memoryDraft.weather === w ? 'bg-white shadow-sm text-amber-500' : 'text-slate-400'}`}>
+                    {w === 'sun' && <Sun size={16} />}
+                    {w === 'cloud' && <Cloud size={16} />}
+                    {w === 'rain' && <CloudRain size={16} />}
+                    {w === 'snow' && <Snowflake size={16} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-100 p-4">
+          <textarea placeholder="寫下當下的心情與對話細節..." className="w-full h-24 text-sm outline-none resize-none text-slate-700 placeholder:text-slate-300 leading-relaxed" value={memoryDraft.text} onChange={(e) => setMemoryDraft({...memoryDraft, text: e.target.value})} />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAddFinance = () => (
+    <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
+      <div className="px-6 pt-12 pb-4 bg-white flex justify-between items-center shadow-xs z-10">
+        <button onClick={() => setCurrentView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><X size={18} /></button>
+        <h2 className="text-sm font-bold text-slate-700">記一筆帳目</h2>
+        <button onClick={handleSaveFinance} className="p-2 bg-slate-800 rounded-full text-white"><Check size={18} /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+        
+        <div className="flex bg-slate-200/60 p-1 rounded-xl">
+          <button onClick={() => setFinanceDraft({...financeDraft, type: 'expense', category: '飲食'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'expense' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>支出</button>
+          <button onClick={() => setFinanceDraft({...financeDraft, type: 'income', category: '薪資'})} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${financeDraft.type === 'income' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>收入</button>
+        </div>
+
+        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-100 flex items-center justify-between">
+           <span className="text-xs font-bold text-slate-500">日期</span>
+           <input type="date" value={financeDraft.date} onChange={(e) => setFinanceDraft({...financeDraft, date: e.target.value})} className="outline-none text-sm text-slate-700 bg-transparent font-medium" />
+        </div>
+
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100">
+          <label className="block text-xs font-bold text-slate-400 mb-2">金額 (NT$)</label>
+          <input type="number" placeholder="0" value={financeDraft.amount} onChange={e => setFinanceDraft({...financeDraft, amount: e.target.value})} className={`w-full outline-none text-3xl font-bold ${financeDraft.type === 'income' ? 'text-emerald-500' : 'text-slate-700'}`} />
+        </div>
+
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-100 space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-400 mb-2">分類標籤</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(financeDraft.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => (
+                <button 
+                  key={c} 
+                  onClick={() => setFinanceDraft({...financeDraft, category: c})} 
+                  className={`py-2 rounded-lg border font-bold transition-colors ${financeDraft.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="pt-2">
+            <label className="block font-bold text-slate-400 mb-1.5">備註說明</label>
+            <input type="text" placeholder={financeDraft.type === 'income' ? "例如：發薪水、中發票..." : "例如：午餐酪梨吐司、Spotify訂閱..."} value={financeDraft.note} onChange={e => setFinanceDraft({...financeDraft, note: e.target.value})} className="w-full p-2.5 bg-slate-50 rounded-lg outline-none text-slate-700 border border-transparent focus:border-slate-200" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderProfile = () => (
+    <div className="flex-1 overflow-y-auto pb-24 relative bg-slate-50 px-6 pt-12">
+      <h1 className="text-xl font-bold mb-6 text-slate-800 tracking-wide">我的設定</h1>
+      <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 mb-6 flex items-center gap-4">
+         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0"><User size={32}/></div>
+         <div className="flex-1">
+           <div className="flex items-center gap-2 mb-1">
+             <input 
+                type="text" 
+                value={userName} 
+                onChange={(e) => setUserName(e.target.value)} 
+                className="text-lg font-bold text-slate-700 bg-transparent outline-none w-24 border-b border-transparent focus:border-amber-400 transition-colors"
+                placeholder="輸入暱稱"
+             />
+             <Edit2 size={12} className="text-slate-400" />
+           </div>
+           <p className="text-xs text-slate-400">累積封存了 {memories.length} 顆記憶球</p>
+         </div>
+      </div>
+      <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
+          <div className="flex items-center gap-3"><ScanFace size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">Face ID 隱私鎖定</span></div>
+          <div className="w-10 h-6 bg-amber-500 rounded-full flex items-center p-1 justify-end"><div className="w-4 h-4 bg-white rounded-full shadow-sm"></div></div>
+        </div>
+        <div className="flex justify-between items-center pb-4 border-b border-slate-50 cursor-pointer hover:opacity-80 transition">
+          <div className="flex items-center gap-3"><Archive size={18} className="text-slate-500"/><span className="text-sm font-bold text-slate-600">本機資料匯出備份</span></div>
+          <span className="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-500 font-bold">下載備份</span>
+        </div>
+        <div className="flex justify-between items-center cursor-pointer hover:opacity-80 transition" onClick={() => {
+           if(window.confirm('確定要清除所有本機資料嗎？此動作無法復原。')) {
+              localStorage.clear();
+              window.location.reload();
+           }
+        }}>
+          <div className="flex items-center gap-3"><Trash2 size={18} className="text-red-400"/><span className="text-sm font-bold text-red-500">清除本機快取資料</span></div>
+        </div>
+      </div>
+    </div>
+  );
 
   const hideNav = ['add_memory', 'add_finance'].includes(currentView);
 
